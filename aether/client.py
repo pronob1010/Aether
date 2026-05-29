@@ -5,8 +5,10 @@ from aether.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
     CircuitBreakerConfig,
+    CostTrackingConfig,
     build_provider,
 )
+from aether.extensions.llm.cost_tracking import CostTrackingProvider, UsageStats
 from aether.registry import REGISTRY, list_kind
 from aether.extensions.llm.registry import LLM_PROVIDER_KIND
 
@@ -28,6 +30,7 @@ class Aether:
         *,
         with_retry: bool = True,
         with_circuit_breaker: bool = True,
+        with_cost_tracking: bool = True,
     ) -> "Aether":
         name = os.getenv("LLM_PROVIDER", "openai")
         specs = REGISTRY[LLM_PROVIDER_KIND]
@@ -56,7 +59,25 @@ class Aether:
             default_model=default_model,
             retry=RetryConfig() if with_retry else None,
             circuit_breaker=CircuitBreakerConfig() if with_circuit_breaker else None,
+            cost_tracking=CostTrackingConfig() if with_cost_tracking else None,
         ))
+
+    @property
+    def usage(self) -> UsageStats:
+        """Cumulative token usage and cost across all calls made via this client.
+
+        Returns an empty `UsageStats` if cost tracking is not enabled in the
+        decorator stack — so the property is always callable, you just see zeros.
+        """
+        # Walk the decorator chain looking for a CostTrackingProvider.
+        provider = self._provider
+        while True:
+            if isinstance(provider, CostTrackingProvider):
+                return provider.stats
+            inner = getattr(provider, "inner_provider", None)
+            if inner is None:
+                return UsageStats()
+            provider = inner
 
     async def complete(
         self,

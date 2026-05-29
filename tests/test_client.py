@@ -63,5 +63,9 @@ def test_aether_from_env_missing_api_key_raises(monkeypatch):
 
 def test_aether_from_env_fake_needs_no_api_key(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "fake")
-    client = Aether.from_env(with_retry=False, with_circuit_breaker=False)
+    client = Aether.from_env(
+        with_retry=False,
+        with_circuit_breaker=False,
+        with_cost_tracking=False,
+    )
     assert isinstance(client._provider, FakeProvider)
