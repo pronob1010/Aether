@@ -1,13 +1,13 @@
 import os
 from aether.llm.contracts import LLMProvider, LLMRequest
-from aether.providers.llm.builder import (
+from aether.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
     CircuitBreakerConfig,
     build_provider,
 )
 from aether.registry import REGISTRY, list_kind
-from aether.providers.llm.registry import LLM_PROVIDER_KIND
+from aether.extensions.llm.registry import LLM_PROVIDER_KIND
 
 
 class Aether:

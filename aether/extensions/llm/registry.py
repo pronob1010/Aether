@@ -52,15 +52,15 @@ def _validate_provider_class(cls: type) -> None:
 # --- Built-in providers (lazy registration) ------------------------------
 
 def _load_openai():
-    from aether.providers.llm.openai import OpenAIProvider
+    from aether.extensions.llm.openai import OpenAIProvider
     return OpenAIProvider
 
 def _load_gemini():
-    from aether.providers.llm.gemini import GeminiProvider
+    from aether.extensions.llm.gemini import GeminiProvider
     return GeminiProvider
 
 def _load_fake():
-    from aether.providers.llm.fake import FakeProvider
+    from aether.extensions.llm.fake import FakeProvider
     return FakeProvider
 
 register_lazy(

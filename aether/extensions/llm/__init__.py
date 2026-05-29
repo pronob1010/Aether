@@ -11,9 +11,9 @@ decorators (`RetryingProvider`, `CircuitBreakerProvider`) live as submodules
 and are imported lazily to keep optional SDK dependencies out of the cold path.
 """
 
-from aether.providers.llm.registry import register_provider, LLM_PROVIDER_KIND
-from aether.providers.llm.factory import make_provider
-from aether.providers.llm.builder import (
+from aether.extensions.llm.registry import register_provider, LLM_PROVIDER_KIND
+from aether.extensions.llm.factory import make_provider
+from aether.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
     CircuitBreakerConfig,

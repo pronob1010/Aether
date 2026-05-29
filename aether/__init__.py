@@ -9,7 +9,7 @@ observability.
 
 from aether.client import Aether
 from aether.llm import LLMProvider, LLMRequest, LLMResponse, ask
-from aether.providers.llm.registry import register_provider
+from aether.extensions.llm.registry import register_provider
 from aether.registry import register, register_lazy
 
 __all__ = [

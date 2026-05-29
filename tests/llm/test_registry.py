@@ -1,14 +1,14 @@
 import pytest
 from aether import Aether, register, register_provider
 from aether.llm.contracts import LLMRequest, LLMResponse
-from aether.providers.llm.factory import make_provider
-from aether.providers.llm.registry import LLM_PROVIDER_KIND
-from aether.providers.llm.builder import (
+from aether.extensions.llm.factory import make_provider
+from aether.extensions.llm.registry import LLM_PROVIDER_KIND
+from aether.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
     build_provider,
 )
-from aether.providers.llm.retrying import RetryingProvider
+from aether.extensions.llm.retrying import RetryingProvider
 from aether.registry import REGISTRY, get, list_kind
 
 
