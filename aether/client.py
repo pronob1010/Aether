@@ -17,6 +17,10 @@ from aether.extensions.llm.builder import (
 from aether.extensions.llm.cost_tracking import CostTrackingProvider, UsageStats
 from aether.registry import REGISTRY, list_kind
 from aether.extensions.llm.registry import LLM_PROVIDER_KIND
+from aether.tools.registry import dispatch_tool
+
+
+DEFAULT_MAX_TOOL_ITERATIONS = 10
 
 
 class Aether:
@@ -98,21 +102,79 @@ class Aether:
         *,
         model: str | None = None,
         temperature: float = 0.7,
+        tools: list[str] | None = None,
+        max_tool_iterations: int = DEFAULT_MAX_TOOL_ITERATIONS,
     ) -> LLMResponse:
         """Full response — text, model, token counts.
 
         `prompt` accepts either a string (treated as a single user turn) or
         a list of `Message` objects for multi-turn conversations.
-        """
-        return await self._provider.complete(LLMRequest(
-            messages=self._to_messages(prompt),
-            model=model,
-            temperature=temperature,
-        ))
 
-    async def ask(self, question: str | list[Message]) -> str:
-        """Text-only convenience over `complete()`. Returns just the answer."""
-        response = await self.complete(question)
+        If `tools` is provided, runs the tool-calling loop: the LLM may
+        request tool invocations, which Aether dispatches and feeds back
+        as new messages, up to `max_tool_iterations` round-trips before
+        returning the most recent response.
+        """
+        messages = self._to_messages(prompt)
+
+        # Fast path: no tools → single round-trip.
+        if not tools:
+            return await self._provider.complete(LLMRequest(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+            ))
+
+        # Tool loop: each iteration is one LLM call. If the LLM emits
+        # tool_calls, dispatch them, append the results as messages, and
+        # call again. Stop when the LLM produces a response with no more
+        # tool calls, or when the iteration cap is hit.
+        response: LLMResponse | None = None
+        for _ in range(max_tool_iterations + 1):
+            response = await self._provider.complete(LLMRequest(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                tools=tools,
+            ))
+            if not response.tool_calls:
+                return response
+
+            messages.append(Message(
+                role="assistant",
+                content=response.text or None,
+                tool_calls=response.tool_calls,
+            ))
+            for tc in response.tool_calls:
+                try:
+                    result = await dispatch_tool(tc.name, tc.arguments)
+                    content = str(result)
+                except Exception as e:
+                    content = f"Error executing {tc.name}: {e}"
+                messages.append(Message(
+                    role="tool",
+                    content=content,
+                    tool_call_id=tc.id,
+                ))
+
+        # Hit the iteration cap — return the last response (likely still
+        # asking for tools, but the caller said "give up after N").
+        assert response is not None
+        return response
+
+    async def ask(
+        self,
+        question: str | list[Message],
+        *,
+        tools: list[str] | None = None,
+    ) -> str:
+        """Text-only convenience over `complete()`. Returns just the answer.
+
+        Supports tool calling — pass `tools=["name", ...]` and Aether runs
+        the loop, returning the final assistant text after all tool calls
+        are resolved.
+        """
+        response = await self.complete(question, tools=tools)
         return response.text
 
     async def stream(

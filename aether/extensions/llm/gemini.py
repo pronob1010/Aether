@@ -1,4 +1,4 @@
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 from google import genai
 from google.genai import types
 from aether.llm.contracts import (
@@ -6,7 +6,9 @@ from aether.llm.contracts import (
     LLMResponse,
     LLMStreamChunk,
     Message,
+    ToolCall,
 )
+from aether.tools import get_tool
 
 
 # Gemini's role names differ from OpenAI's.
@@ -30,13 +32,64 @@ def _split_system_and_conversation(
 def _to_gemini_contents(messages: list[Message]) -> list[types.Content]:
     contents: list[types.Content] = []
     for msg in messages:
-        if msg.role in _ROLE_MAP and msg.content is not None:
+        if msg.role == "assistant" and msg.tool_calls:
+            # Model emitted a function call in a prior turn.
+            parts = [
+                types.Part.from_function_call(name=tc.name, args=tc.arguments)
+                for tc in msg.tool_calls
+            ]
+            if msg.content:
+                parts.insert(0, types.Part.from_text(text=msg.content))
+            contents.append(types.Content(role="model", parts=parts))
+        elif msg.role == "tool" and msg.tool_call_id is not None:
+            # Result of a function the framework executed.
+            # Gemini expects function_response wrapped in a user-role Content.
+            contents.append(types.Content(
+                role="user",
+                parts=[types.Part.from_function_response(
+                    name=msg.tool_call_id,
+                    response={"result": msg.content or ""},
+                )],
+            ))
+        elif msg.role in _ROLE_MAP and msg.content is not None:
             contents.append(types.Content(
                 role=_ROLE_MAP[msg.role],
                 parts=[types.Part.from_text(text=msg.content)],
             ))
-        # Tool turns: deferred to Phase C.
     return contents
+
+
+def _tools_config(tool_names: list[str] | None) -> list[types.Tool] | None:
+    if not tool_names:
+        return None
+    declarations: list[types.FunctionDeclaration] = []
+    for name in tool_names:
+        spec = get_tool(name)
+        declarations.append(types.FunctionDeclaration(
+            name=spec.schema["name"],
+            description=spec.schema.get("description", ""),
+            parameters=spec.schema["parameters"],
+        ))
+    return [types.Tool(function_declarations=declarations)]
+
+
+def _parse_function_calls(response: Any) -> list[ToolCall]:
+    parsed: list[ToolCall] = []
+    candidates = getattr(response, "candidates", None) or []
+    for cand in candidates:
+        parts = getattr(cand.content, "parts", None) or []
+        for part in parts:
+            fc = getattr(part, "function_call", None)
+            if fc and fc.name:
+                # Gemini doesn't supply call IDs — synthesize one using the name.
+                # The framework only needs IDs for matching call → result, and
+                # since Gemini takes function_responses by NAME, that's enough.
+                parsed.append(ToolCall(
+                    id=fc.name,
+                    name=fc.name,
+                    arguments=dict(fc.args) if fc.args else {},
+                ))
+    return parsed
 
 
 class GeminiProvider:
@@ -50,6 +103,7 @@ class GeminiProvider:
         config = types.GenerateContentConfig(
             temperature=request.temperature,
             system_instruction=system,
+            tools=_tools_config(request.tools),
         )
         response = await self.client.aio.models.generate_content(
             model=model,
@@ -62,9 +116,11 @@ class GeminiProvider:
             model=response.model_version or model,
             input_tokens=usage.prompt_token_count if usage else 0,
             output_tokens=usage.candidates_token_count if usage else 0,
+            tool_calls=_parse_function_calls(response),
         )
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamChunk]:
+        # NOTE: streaming + tool calling not supported in Phase C (same as OpenAI).
         model = request.model or self.default_model
         system, conversation = _split_system_and_conversation(request.messages)
         config = types.GenerateContentConfig(

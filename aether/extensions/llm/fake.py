@@ -1,9 +1,28 @@
 from typing import AsyncIterator
-from aether.llm.contracts import LLMRequest, LLMResponse, LLMStreamChunk
+from aether.llm.contracts import (
+    LLMRequest,
+    LLMResponse,
+    LLMStreamChunk,
+)
+
 
 class FakeProvider:
-    def __init__(self, canned_response: str = "This is a fake response."):
+    """Test-only provider with two response modes:
+
+      - canned_response="text" — every call returns the same text response.
+      - responses=[LLMResponse, ...] — returns each response in sequence.
+        Useful for scripting multi-turn flows where some turns emit tool_calls
+        and subsequent turns deliver the final answer.
+    """
+
+    def __init__(
+        self,
+        canned_response: str = "This is a fake response.",
+        responses: list[LLMResponse] | None = None,
+    ):
         self.canned_response = canned_response
+        self._scripted = responses
+        self._scripted_index = 0
         self.calls: list[LLMRequest] = []
 
     def _last_user_text(self, request: LLMRequest) -> str:
@@ -14,6 +33,10 @@ class FakeProvider:
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
         self.calls.append(request)
+        if self._scripted is not None:
+            response = self._scripted[self._scripted_index]
+            self._scripted_index += 1
+            return response
         return LLMResponse(
             text=self.canned_response,
             model='fake-model',
