@@ -1,5 +1,5 @@
 import os
-from aether.llm.contracts import LLMProvider, LLMRequest
+from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse
 from aether.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
@@ -57,6 +57,25 @@ class Aether:
             circuit_breaker=CircuitBreakerConfig() if with_circuit_breaker else None,
         ))
 
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        temperature: float = 0.7,
+    ) -> LLMResponse:
+        """Full response — text, model, token counts.
+
+        Use this when you need anything beyond the answer string (token
+        usage for cost tracking, model name actually used, etc.).
+        """
+        return await self._provider.complete(LLMRequest(
+            prompt=prompt,
+            model=model,
+            temperature=temperature,
+        ))
+
     async def ask(self, question: str) -> str:
-        response = await self._provider.complete(LLMRequest(prompt=question))
+        """Text-only convenience over `complete()`. Returns just the answer."""
+        response = await self.complete(question)
         return response.text

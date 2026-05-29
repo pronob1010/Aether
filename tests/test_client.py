@@ -10,7 +10,37 @@ async def test_aether_ask_delegates_to_provider():
     client = Aether(fake)
     answer = await client.ask("What is the meaning of life?")
     assert answer == "42"
-    assert fake.calls[0].prompt == "What is the meaning of life?"
+
+
+@pytest.mark.asyncio
+async def test_aether_complete_returns_full_response():
+    fake = FakeProvider(canned_response="42")
+    client = Aether(fake)
+    response = await client.complete("What is the meaning of life?")
+    assert response.text == "42"
+    assert response.model == "fake-model"
+    assert response.input_tokens > 0
+    assert response.output_tokens > 0
+
+
+@pytest.mark.asyncio
+async def test_aether_complete_forwards_model_and_temperature():
+    fake = FakeProvider()
+    client = Aether(fake)
+    await client.complete("hi", model="gpt-4o", temperature=0.0)
+    sent = fake.calls[0]
+    assert sent.model == "gpt-4o"
+    assert sent.temperature == 0.0
+
+
+@pytest.mark.asyncio
+async def test_aether_ask_uses_complete_internally():
+    """ask() is a thin wrapper — same request goes through."""
+    fake = FakeProvider(canned_response="hello")
+    client = Aether(fake)
+    answer = await client.ask("ping")
+    assert answer == "hello"
+    assert fake.calls[0].prompt == "ping"
 
 
 def test_aether_from_config_builds_provider():

@@ -12,5 +12,5 @@ def make_provider(name: str, **kwargs) -> LLMProvider:
             f"unknown provider: {name!r}. "
             f"Known providers: {list_kind(LLM_PROVIDER_KIND)}."
         )
-    cls = specs[name]._factory()
+    cls = specs[name].factory()
     return cls(**kwargs)

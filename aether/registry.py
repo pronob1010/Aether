@@ -16,7 +16,7 @@ from typing import Any, Callable
 @dataclass(frozen=True)
 class PluginSpec:
     """Everything the framework stores about one registered plugin."""
-    _factory: Callable[[], type]            # returns the CLASS (lazy or eager)
+    factory: Callable[[], type]             # returns the CLASS (lazy or eager)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -43,7 +43,7 @@ def register(kind: str, name: str, **metadata: Any):
                 f"register() expects a class, got {type(cls).__name__}"
             )
         REGISTRY[kind][name] = PluginSpec(
-            _factory=lambda: cls,
+            factory=lambda: cls,
             metadata=dict(metadata),
         )
         return cls
@@ -63,7 +63,7 @@ def register_lazy(
     until first use.
     """
     REGISTRY[kind][name] = PluginSpec(
-        _factory=factory,
+        factory=factory,
         metadata=dict(metadata),
     )
 

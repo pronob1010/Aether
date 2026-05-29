@@ -140,7 +140,7 @@ def test_generic_register_works_for_arbitrary_kind(cleanup_registry):
     spec = get("vector_store", "pinecone")
     assert spec.metadata == {"dimension": 1536, "metric": "cosine"}
 
-    cls = spec._factory()
+    cls = spec.factory()
     assert cls is PineconeStore
     assert "pinecone" in list_kind("vector_store")
 
@@ -151,8 +151,8 @@ def test_kinds_are_namespaced(cleanup_registry):
     class FakeVectorStore: pass
 
     # "fake" is also a registered llm_provider (built-in) — no conflict
-    assert get("vector_store", "fake")._factory() is FakeVectorStore
-    assert get(LLM_PROVIDER_KIND, "fake")._factory().__name__ == "FakeProvider"
+    assert get("vector_store", "fake").factory() is FakeVectorStore
+    assert get(LLM_PROVIDER_KIND, "fake").factory().__name__ == "FakeProvider"
 
 
 def test_get_raises_for_unknown_kind(cleanup_registry):
