@@ -1,5 +1,6 @@
 import os
-from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse
+from typing import AsyncIterator
+from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse, LLMStreamChunk
 from aether.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
@@ -79,3 +80,31 @@ class Aether:
         """Text-only convenience over `complete()`. Returns just the answer."""
         response = await self.complete(question)
         return response.text
+
+    async def stream(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        temperature: float = 0.7,
+    ) -> AsyncIterator[LLMStreamChunk]:
+        """Stream of rich chunks — delta text + metadata.
+
+        Use this when you need anything beyond the streamed text (token
+        counts on the final chunk, finish reason, etc.).
+        """
+        request = LLMRequest(prompt=prompt, model=model, temperature=temperature)
+        async for chunk in self._provider.stream(request):
+            yield chunk
+
+    async def stream_text(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        temperature: float = 0.7,
+    ) -> AsyncIterator[str]:
+        """Text-only convenience over `stream()`. Yields just text deltas."""
+        async for chunk in self.stream(prompt, model=model, temperature=temperature):
+            if chunk.text:
+                yield chunk.text

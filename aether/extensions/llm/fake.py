@@ -1,10 +1,11 @@
-from aether.llm.contracts import LLMRequest, LLMResponse
+from typing import AsyncIterator
+from aether.llm.contracts import LLMRequest, LLMResponse, LLMStreamChunk
 
 class FakeProvider:
     def __init__(self, canned_response: str = "This is a fake response."):
         self.canned_response = canned_response
         self.calls: list[LLMRequest] = []
-    
+
     async def complete(self, request: LLMRequest) -> LLMResponse:
         self.calls.append(request)
         return LLMResponse(
@@ -13,3 +14,17 @@ class FakeProvider:
             input_tokens=len(request.prompt.split()),
             output_tokens=len(self.canned_response.split()),
         )
+
+    async def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamChunk]:
+        self.calls.append(request)
+        words = self.canned_response.split()
+        for i, word in enumerate(words):
+            is_last = i == len(words) - 1
+            delta = word if i == 0 else f" {word}"
+            yield LLMStreamChunk(
+                text=delta,
+                model='fake-model' if is_last else None,
+                finish_reason='stop' if is_last else None,
+                input_tokens=len(request.prompt.split()) if is_last else None,
+                output_tokens=len(words) if is_last else None,
+            )

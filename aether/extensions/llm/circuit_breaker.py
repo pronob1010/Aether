@@ -1,7 +1,8 @@
 import time
 import logging
 from enum import Enum
-from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse
+from typing import AsyncIterator
+from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse, LLMStreamChunk
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,23 @@ class CircuitBreakerProvider:
             response = await self.inner_provider.complete(request)
             self._on_success()
             return response
+        except Exception as e:
+            if not isinstance(e, CircuitBreakerOpenException):
+                self._on_failure()
+            raise
+
+    async def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamChunk]:
+        self._check_state_transition()
+
+        if self.state == CircuitState.OPEN:
+            raise CircuitBreakerOpenException("Circuit breaker is OPEN. Failing fast.")
+
+        # A failed stream (at any point) counts as ONE breaker failure.
+        # A normally-completing stream counts as ONE success.
+        try:
+            async for chunk in self.inner_provider.stream(request):
+                yield chunk
+            self._on_success()
         except Exception as e:
             if not isinstance(e, CircuitBreakerOpenException):
                 self._on_failure()
