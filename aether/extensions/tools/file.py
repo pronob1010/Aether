@@ -1,9 +1,7 @@
 """File-reading tool. Returns text from a path on the local filesystem."""
 from pathlib import Path
 from aether import register_tool
-
-
-_MAX_BYTES = 200_000  # truncate huge files to fit LLM context
+from aether.config import get_file_tool_max_bytes
 
 
 @register_tool(description="Read a text file from the local filesystem.")
@@ -24,7 +22,8 @@ def read_file(path: str, encoding: str = "utf-8") -> str:
         data = p.read_bytes()
     except PermissionError:
         return f"Error: permission denied: {path}"
-    if len(data) > _MAX_BYTES:
-        truncated = data[:_MAX_BYTES].decode(encoding, errors="replace")
+    max_bytes = get_file_tool_max_bytes()
+    if len(data) > max_bytes:
+        truncated = data[:max_bytes].decode(encoding, errors="replace")
         return truncated + f"\n\n[truncated — {len(data)} bytes total]"
     return data.decode(encoding, errors="replace")

@@ -18,9 +18,7 @@ from aether.extensions.llm.cost_tracking import CostTrackingProvider, UsageStats
 from aether.registry import REGISTRY, list_kind
 from aether.extensions.llm.registry import LLM_PROVIDER_KIND
 from aether.tools.registry import dispatch_tool
-
-
-DEFAULT_MAX_TOOL_ITERATIONS = 10
+from aether.config import get_default_temperature, get_max_tool_iterations
 
 
 class Aether:
@@ -101,9 +99,9 @@ class Aether:
         prompt: str | list[Message],
         *,
         model: str | None = None,
-        temperature: float = 0.7,
+        temperature: float | None = None,
         tools: list[str] | None = None,
-        max_tool_iterations: int = DEFAULT_MAX_TOOL_ITERATIONS,
+        max_tool_iterations: int | None = None,
     ) -> LLMResponse:
         """Full response — text, model, token counts.
 
@@ -114,7 +112,15 @@ class Aether:
         request tool invocations, which Aether dispatches and feeds back
         as new messages, up to `max_tool_iterations` round-trips before
         returning the most recent response.
+
+        Unspecified `temperature` reads `AETHER_DEFAULT_TEMPERATURE`
+        (falls back to 0.7). Unspecified `max_tool_iterations` reads
+        `AETHER_MAX_TOOL_ITERATIONS` (falls back to 10).
         """
+        if temperature is None:
+            temperature = get_default_temperature()
+        if max_tool_iterations is None:
+            max_tool_iterations = get_max_tool_iterations()
         messages = self._to_messages(prompt)
 
         # Fast path: no tools → single round-trip.
@@ -182,9 +188,11 @@ class Aether:
         prompt: str | list[Message],
         *,
         model: str | None = None,
-        temperature: float = 0.7,
+        temperature: float | None = None,
     ) -> AsyncIterator[LLMStreamChunk]:
         """Stream of rich chunks — delta text + metadata."""
+        if temperature is None:
+            temperature = get_default_temperature()
         request = LLMRequest(
             messages=self._to_messages(prompt),
             model=model,
@@ -198,7 +206,7 @@ class Aether:
         prompt: str | list[Message],
         *,
         model: str | None = None,
-        temperature: float = 0.7,
+        temperature: float | None = None,
     ) -> AsyncIterator[str]:
         """Text-only convenience over `stream()`. Yields just text deltas."""
         async for chunk in self.stream(prompt, model=model, temperature=temperature):
