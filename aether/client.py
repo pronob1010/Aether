@@ -30,6 +30,8 @@ from aether.events import (
     StreamStartEvent, StreamChunkEvent, StreamCompleteEvent, StreamErrorEvent,
     ToolStartEvent, ToolCompleteEvent, ToolErrorEvent,
 )
+from aether.memory import Session, SessionStore
+from aether.extensions.memory import InMemorySessionStore
 
 
 def _config_from_env(
@@ -101,6 +103,7 @@ class Aether:
         with_circuit_breaker: bool = True,
         with_cost_tracking: bool = True,
         events: EventBus | None = None,
+        memory_store: SessionStore | None = None,
     ):
         if provider is not None and config is not None:
             raise ValueError("Pass either `provider` or `config`, not both.")
@@ -108,6 +111,11 @@ class Aether:
         # Share an EventBus across clients by passing the same instance.
         # Default: each client gets its own.
         self.events = events or EventBus()
+
+        # Session store + a per-client cache so `client.session("id")` always
+        # returns the same Session object (in-process consistency).
+        self._memory_store: SessionStore = memory_store or InMemorySessionStore()
+        self._sessions: dict[str, Session] = {}
 
         if provider is not None:
             self._provider = provider
@@ -120,6 +128,28 @@ class Aether:
                 with_cost_tracking=with_cost_tracking,
             )
         self._provider = build_provider(config)
+
+    # --- Sessions ---------------------------------------------------------
+
+    def session(self, session_id: str, *, system: str | None = None) -> Session:
+        """Get or create a stateful conversation session.
+
+        Same `session_id` returns the same Session object within this client
+        (state stays in sync). `system` only applies on first creation; later
+        calls with a different `system` value are ignored.
+
+        For cross-process sharing (multiple workers), pass a shared
+        `memory_store` to each `Aether` — they'll see the same persisted
+        history even with separate in-memory caches.
+        """
+        if session_id not in self._sessions:
+            self._sessions[session_id] = Session(
+                session_id=session_id,
+                store=self._memory_store,
+                client=self,
+                system=system,
+            )
+        return self._sessions[session_id]
 
     # --- Observability shortcuts -----------------------------------------
 

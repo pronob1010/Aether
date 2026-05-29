@@ -146,6 +146,58 @@ convo = [
 answer = await client.ask(convo)
 ```
 
+### Sessions (stateful conversations)
+
+For chat apps, threading messages by hand gets old fast. Sessions
+remember the conversation for you:
+
+```python
+client = Aether()
+session = client.session("user_alice", system="You are helpful.")
+
+await session.ask("My name is Alice.")
+await session.ask("What's my name?")   # → "Your name is Alice."
+
+# Streaming works too — final text auto-saved to history
+async for delta in session.stream_text("Tell me a story"):
+    print(delta, end="", flush=True)
+```
+
+Same `session_id` returns the same Session object within a client.
+Across processes, share the underlying store:
+
+```python
+from aether.extensions.memory import InMemorySessionStore
+store = InMemorySessionStore()              # or your own Redis/SQL store
+client_a = Aether(memory_store=store)
+client_b = Aether(memory_store=store)
+# Both see the same `session("alice")` history
+```
+
+The default store is in-memory. For production, implement the
+`SessionStore` Protocol against Redis, SQLite, etc.:
+
+```python
+from aether import SessionStore
+from aether.llm.contracts import Message
+
+class RedisSessionStore:
+    async def load(self, session_id: str) -> list[Message]: ...
+    async def save(self, session_id: str, messages: list[Message]) -> None: ...
+    async def delete(self, session_id: str) -> None: ...
+    async def exists(self, session_id: str) -> bool: ...
+```
+
+Three correctness guarantees baked in:
+
+- **Tool dispatches stay out of session history.** A session sees
+  `[system, user, assistant_final_text]` — internal tool turns from
+  the loop don't pollute it.
+- **Failed calls roll back.** If the LLM errors mid-turn, the
+  dangling user message is removed; next turn starts clean.
+- **Concurrent `session.ask()` is serialized** via a per-session
+  asyncio.Lock — no interleaved history corruption.
+
 ### Resilience
 
 Retry (with exponential backoff) and Circuit Breaker both ship as
@@ -203,6 +255,9 @@ aether/
 │   ├── registry.py          ← @register_tool decorator
 │   ├── schema.py            ← signature → JSON Schema
 │   └── (dispatch_tool, get_tool, list_tools exposed via __init__)
+├── memory/                  ← user-facing session API
+│   ├── contracts.py         ← SessionStore Protocol
+│   └── session.py           ← Session class
 └── extensions/              ← all plugin implementations
     ├── llm/
     │   ├── openai.py, gemini.py, fake.py   ← adapters
@@ -210,10 +265,12 @@ aether/
     │   ├── registry.py      ← LLM-provider registration helper
     │   ├── factory.py       ← name → instance
     │   └── builder.py       ← config → composed stack
-    └── tools/
-        ├── time.py          ← get_current_time
-        ├── http.py          ← http_get
-        └── file.py          ← read_file
+    ├── tools/
+    │   ├── time.py          ← get_current_time
+    │   ├── http.py          ← http_get
+    │   └── file.py          ← read_file
+    └── memory/
+        └── in_memory.py     ← InMemorySessionStore (default)
 ```
 
 Each layer only knows the one below it. The **generic registry** at
@@ -341,12 +398,12 @@ fake = FakeProvider(responses=[
 Shipped: provider abstraction, resilience (retry + circuit breaker),
 cost tracking, streaming (including with tool calls), multi-turn
 messages, tool calling, reference tools, env-driven config,
-observability hooks (Observer pattern).
+observability hooks (Observer pattern), sessions/memory subsystem.
 
 On deck (not yet built):
 - Caching decorator
 - Anthropic provider
-- Memory/session subsystem
+- Redis-backed `SessionStore`
 - `pyproject.toml` and PyPI release
 
 ## License

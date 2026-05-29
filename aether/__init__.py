@@ -14,6 +14,7 @@ from aether.extensions.llm.cost_tracking import UsageStats, TokenUsage, ModelPri
 from aether.registry import register, register_lazy
 from aether.tools import register_tool, list_tools, get_tool
 from aether.events import EventBus
+from aether.memory import Session, SessionStore
 
 __all__ = [
     # Entry point
@@ -21,6 +22,9 @@ __all__ = [
     # Conversation primitives
     "Message",
     "ToolCall",
+    # Sessions (stateful conversations)
+    "Session",
+    "SessionStore",
     # Cost tracking primitives (exposed via Aether.usage)
     "UsageStats",
     "TokenUsage",
