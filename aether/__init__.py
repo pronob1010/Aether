@@ -12,6 +12,7 @@ from aether.llm import LLMProvider, LLMRequest, LLMResponse, Message, ToolCall, 
 from aether.extensions.llm.registry import register_provider
 from aether.extensions.llm.cost_tracking import UsageStats, TokenUsage, ModelPricing
 from aether.registry import register, register_lazy
+from aether.tools import register_tool, list_tools, get_tool
 
 __all__ = [
     # Entry point
@@ -28,6 +29,10 @@ __all__ = [
     "register_lazy",
     # LLM-specific convenience
     "register_provider",
+    # Tool registration
+    "register_tool",
+    "list_tools",
+    "get_tool",
     # LLM contracts
     "LLMProvider",
     "LLMRequest",
