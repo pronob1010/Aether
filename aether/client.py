@@ -300,8 +300,11 @@ class Aether:
                 ))
 
         # Hit the iteration cap — return the last response (likely still
-        # asking for tools, but the caller said "give up after N").
-        assert response is not None
+        # asking for tools, but the caller said "give up after N"). The loop
+        # always runs at least once, so response is set; guard explicitly
+        # rather than assert so the check survives `python -O`.
+        if response is None:
+            raise RuntimeError("tool loop produced no response")
         return response
 
     async def ask(

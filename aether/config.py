@@ -29,6 +29,13 @@ def _float_env(name: str, default: float) -> float:
         return default
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 # --- Tool loop ----------------------------------------------------------
 
 def get_max_tool_iterations() -> int:
@@ -78,3 +85,41 @@ def get_file_tool_max_bytes() -> int:
     Override via `AETHER_FILE_TOOL_MAX_BYTES`. Falls back to 200_000.
     """
     return _int_env("AETHER_FILE_TOOL_MAX_BYTES", 200_000)
+
+
+# --- Reference tool security gates -------------------------------------
+
+def get_http_tool_allow_private() -> bool:
+    """Whether `http_get` may reach private / loopback / link-local addresses.
+
+    Defaults to False: requests resolving to internal IP ranges — including
+    the cloud metadata endpoint 169.254.169.254 — are refused to mitigate
+    SSRF when the URL is chosen by the LLM. Set
+    `AETHER_HTTP_TOOL_ALLOW_PRIVATE=1` to permit them (e.g. local development
+    hitting localhost).
+    """
+    return _bool_env("AETHER_HTTP_TOOL_ALLOW_PRIVATE", False)
+
+
+def get_http_tool_allowed_hosts() -> list[str] | None:
+    """Optional allowlist of hostnames `http_get` may contact.
+
+    Set `AETHER_HTTP_TOOL_ALLOWED_HOSTS` to a comma-separated list; any host
+    not on it is refused. When unset (None) all hosts are allowed, subject to
+    the private-address check above.
+    """
+    raw = os.getenv("AETHER_HTTP_TOOL_ALLOWED_HOSTS")
+    if not raw:
+        return None
+    return [h.strip().lower() for h in raw.split(",") if h.strip()]
+
+
+def get_file_tool_root() -> str | None:
+    """Optional directory that `read_file` is confined to.
+
+    Set `AETHER_FILE_TOOL_ROOT` to sandbox reads: any path resolving outside
+    this directory (after following symlinks) is refused, blocking traversal
+    such as `../../etc/passwd`. When unset (None), `read_file` may read any
+    path the process can access.
+    """
+    return os.getenv("AETHER_FILE_TOOL_ROOT") or None
