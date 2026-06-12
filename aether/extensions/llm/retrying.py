@@ -58,8 +58,13 @@ class RetryingProvider:
                 iterator = aiter(self.inner_provider.stream(request))
                 first_chunk = await anext(iterator)
 
-        # Type narrowing: tenacity guarantees these are set on success.
-        assert iterator is not None and first_chunk is not None
+        # tenacity (reraise=True) guarantees the loop either set these or
+        # raised. Guard explicitly rather than assert so the check survives
+        # `python -O`, which strips assert statements.
+        if iterator is None or first_chunk is None:
+            raise RuntimeError(
+                "stream retry loop completed without yielding a first chunk"
+            )
 
         yield first_chunk
         async for chunk in iterator:
