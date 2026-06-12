@@ -1,7 +1,7 @@
 """Tool registry — @register_tool decorator + dispatch."""
 import pytest
 from aether import register_tool, list_tools, get_tool
-from aether.tools.registry import dispatch_tool, TOOL_KIND
+from aether.tools.registry import dispatch_tool, TOOL_KIND, ToolArgumentError
 from aether.registry import REGISTRY
 
 
@@ -86,6 +86,48 @@ async def test_dispatch_async_tool(cleanup_registry):
 async def test_dispatch_unknown_tool_raises(cleanup_registry):
     with pytest.raises(KeyError, match="unknown tool"):
         await dispatch_tool("nope", {})
+
+
+# --- Argument validation -------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dispatch_missing_required_argument(cleanup_registry):
+    @register_tool()
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    with pytest.raises(ToolArgumentError, match="missing required argument.*b"):
+        await dispatch_tool("add", {"a": 1})
+
+
+@pytest.mark.asyncio
+async def test_dispatch_unexpected_argument(cleanup_registry):
+    @register_tool()
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    with pytest.raises(ToolArgumentError, match="unexpected argument.*c"):
+        await dispatch_tool("add", {"a": 1, "b": 2, "c": 3})
+
+
+@pytest.mark.asyncio
+async def test_dispatch_allows_optional_argument_omitted(cleanup_registry):
+    @register_tool()
+    def greet(name: str, greeting: str = "hi") -> str:
+        return f"{greeting} {name}"
+
+    result = await dispatch_tool("greet", {"name": "ada"})
+    assert result == "hi ada"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_kwargs_tool_accepts_extra_args(cleanup_registry):
+    @register_tool()
+    def flexible(a: int, **kwargs) -> dict:
+        return {"a": a, **kwargs}
+
+    result = await dispatch_tool("flexible", {"a": 1, "extra": 2})
+    assert result == {"a": 1, "extra": 2}
 
 
 # --- Schema generation through @register_tool ---------------------------

@@ -14,6 +14,7 @@ ToolCall, LLMResponse.tool_calls) is what carries this across providers.
 from aether.tools.registry import (
     TOOL_KIND,
     ToolSpec,
+    ToolArgumentError,
     register_tool,
     get_tool,
     list_tools,
@@ -24,6 +25,7 @@ from aether.tools.schema import tool_schema
 __all__ = [
     "TOOL_KIND",
     "ToolSpec",
+    "ToolArgumentError",
     "register_tool",
     "get_tool",
     "list_tools",
