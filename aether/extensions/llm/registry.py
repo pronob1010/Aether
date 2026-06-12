@@ -59,6 +59,10 @@ def _load_gemini():
     from aether.extensions.llm.gemini import GeminiProvider
     return GeminiProvider
 
+def _load_anthropic():
+    from aether.extensions.llm.anthropic import AnthropicProvider
+    return AnthropicProvider
+
 def _load_fake():
     from aether.extensions.llm.fake import FakeProvider
     return FakeProvider
@@ -70,6 +74,10 @@ register_lazy(
 register_lazy(
     LLM_PROVIDER_KIND, "gemini", _load_gemini,
     api_key_env="GEMINI_API_KEY", model_env="GEMINI_MODEL",
+)
+register_lazy(
+    LLM_PROVIDER_KIND, "anthropic", _load_anthropic,
+    api_key_env="ANTHROPIC_API_KEY", model_env="ANTHROPIC_MODEL",
 )
 register_lazy(
     LLM_PROVIDER_KIND, "fake", _load_fake,

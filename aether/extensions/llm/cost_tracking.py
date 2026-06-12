@@ -23,6 +23,9 @@ DEFAULT_PRICING: dict[str, ModelPricing] = {
     "gpt-4o-mini":       ModelPricing(input_per_1m=0.15, output_per_1m=0.60),
     "gemini-2.0-flash":  ModelPricing(input_per_1m=0.10, output_per_1m=0.40),
     "gemini-2.5-flash":  ModelPricing(input_per_1m=0.30, output_per_1m=2.50),
+    "claude-opus-4-8":   ModelPricing(input_per_1m=5.00, output_per_1m=25.00),
+    "claude-sonnet-4-6": ModelPricing(input_per_1m=3.00, output_per_1m=15.00),
+    "claude-haiku-4-5":  ModelPricing(input_per_1m=1.00, output_per_1m=5.00),
     "fake-model":        ModelPricing(input_per_1m=0.0, output_per_1m=0.0),
 }
 
