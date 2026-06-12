@@ -72,6 +72,40 @@ async def test_read_file_on_directory_returns_error(tmp_path):
     assert "not a file" in result
 
 
+@pytest.mark.asyncio
+async def test_read_file_root_allows_path_inside(tmp_path, monkeypatch):
+    monkeypatch.setenv("AETHER_FILE_TOOL_ROOT", str(tmp_path))
+    p = tmp_path / "ok.txt"
+    p.write_text("inside\n")
+    result = await dispatch_tool("read_file", {"path": str(p)})
+    assert result == "inside\n"
+
+
+@pytest.mark.asyncio
+async def test_read_file_root_blocks_path_outside(tmp_path, monkeypatch):
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    outside = tmp_path / "secret.txt"
+    outside.write_text("top secret\n")
+    monkeypatch.setenv("AETHER_FILE_TOOL_ROOT", str(root))
+    result = await dispatch_tool("read_file", {"path": str(outside)})
+    assert "Error" in result
+    assert "outside the allowed root" in result
+
+
+@pytest.mark.asyncio
+async def test_read_file_root_blocks_traversal(tmp_path, monkeypatch):
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (tmp_path / "secret.txt").write_text("top secret\n")
+    monkeypatch.setenv("AETHER_FILE_TOOL_ROOT", str(root))
+    result = await dispatch_tool(
+        "read_file", {"path": str(root / ".." / "secret.txt")}
+    )
+    assert "Error" in result
+    assert "outside the allowed root" in result
+
+
 # --- http_get ------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -80,6 +114,44 @@ async def test_http_get_rejects_non_http_url():
     result = await dispatch_tool("http_get", {"url": "file:///etc/passwd"})
     assert "Error" in result
     assert "http://" in result or "https://" in result
+
+
+@pytest.mark.asyncio
+async def test_http_get_blocks_loopback_by_default():
+    """SSRF guard: localhost resolves to a loopback address and is refused."""
+    result = await dispatch_tool("http_get", {"url": "http://localhost/admin"})
+    assert "Error" in result
+    assert "private/internal address" in result
+
+
+@pytest.mark.asyncio
+async def test_http_get_blocks_cloud_metadata_ip():
+    """The classic SSRF target — link-local metadata endpoint — is refused."""
+    result = await dispatch_tool(
+        "http_get", {"url": "http://169.254.169.254/latest/meta-data/"}
+    )
+    assert "Error" in result
+    assert "private/internal address" in result
+
+
+@pytest.mark.asyncio
+async def test_http_get_host_not_in_allowlist_refused(monkeypatch):
+    monkeypatch.setenv("AETHER_HTTP_TOOL_ALLOWED_HOSTS", "example.com,api.test")
+    result = await dispatch_tool("http_get", {"url": "https://evil.example/"})
+    assert "Error" in result
+    assert "ALLOWED_HOSTS" in result
+
+
+def test_http_get_allow_private_escape_hatch(monkeypatch):
+    """With the escape hatch set, the guard passes private addresses through.
+
+    Tests the guard directly to avoid an actual network connection (http_get
+    leaves connection errors to the tool-loop wrapper, not its own body)."""
+    from aether.extensions.tools.http import _ssrf_check
+
+    assert _ssrf_check("http://127.0.0.1/") is not None  # blocked by default
+    monkeypatch.setenv("AETHER_HTTP_TOOL_ALLOW_PRIVATE", "1")
+    assert _ssrf_check("http://127.0.0.1/") is None  # now allowed
 
 
 # Note: live HTTP integration test omitted — flaky on offline test runs

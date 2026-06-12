@@ -1,7 +1,12 @@
-"""File-reading tool. Returns text from a path on the local filesystem."""
+"""File-reading tool. Returns text from a path on the local filesystem.
+
+Security: the path is typically chosen by the LLM. Set `AETHER_FILE_TOOL_ROOT`
+to confine reads to a directory — paths resolving outside it (after following
+symlinks, so `../` traversal and symlink escapes are caught) are refused.
+"""
 from pathlib import Path
 from aether import register_tool
-from aether.config import get_file_tool_max_bytes
+from aether.config import get_file_tool_max_bytes, get_file_tool_root
 
 
 @register_tool(description="Read a text file from the local filesystem.")
@@ -14,6 +19,16 @@ def read_file(path: str, encoding: str = "utf-8") -> str:
             replaced (no crash on weird bytes).
     """
     p = Path(path)
+    root = get_file_tool_root()
+    if root is not None:
+        try:
+            target = p.resolve()
+        except OSError:
+            return f"Error: invalid path: {path}"
+        root_resolved = Path(root).resolve()
+        if not target.is_relative_to(root_resolved):
+            return f"Error: path is outside the allowed root ({root}): {path}"
+        p = target
     if not p.exists():
         return f"Error: file not found: {path}"
     if not p.is_file():
