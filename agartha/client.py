@@ -4,7 +4,11 @@ import os
 import time
 from collections.abc import AsyncIterator
 
-from agartha.config import get_default_temperature, get_max_tool_iterations
+from agartha.config import (
+    get_default_temperature,
+    get_max_tool_iterations,
+    get_parallel_tools,
+)
 from agartha.events import (
     REQUEST_COMPLETE,
     REQUEST_ERROR,
@@ -304,6 +308,20 @@ class Agartha:
         ))
         return override
 
+    async def _dispatch_tool_calls(self, tool_calls, *, parallel: bool) -> list[str]:
+        """Dispatch a turn's tool calls and return their results in order.
+
+        Parallel (the default) runs them concurrently via `asyncio.gather` —
+        independent tools and sub-agent fan-out overlap. Sequential awaits each
+        in turn, for tools/middleware that share mutable state. Either way the
+        returned list matches `tool_calls` order.
+        """
+        if parallel and len(tool_calls) > 1:
+            return list(await asyncio.gather(*(
+                self._dispatch_with_middleware(tc) for tc in tool_calls
+            )))
+        return [await self._dispatch_with_middleware(tc) for tc in tool_calls]
+
     async def complete(
         self,
         prompt: str | list[Message],
@@ -312,6 +330,7 @@ class Agartha:
         temperature: float | None = None,
         tools: list[str] | None = None,
         max_tool_iterations: int | None = None,
+        parallel_tools: bool | None = None,
     ) -> LLMResponse:
         """Full response — text, model, token counts.
 
@@ -321,16 +340,21 @@ class Agartha:
         If `tools` is provided, runs the tool-calling loop: the LLM may
         request tool invocations, which Agartha dispatches and feeds back
         as new messages, up to `max_tool_iterations` round-trips before
-        returning the most recent response.
+        returning the most recent response. Multiple tool calls in one turn
+        run concurrently by default; pass `parallel_tools=False` to dispatch
+        them strictly in order (results are appended in order either way).
 
         Unspecified `temperature` reads `AGARTHA_DEFAULT_TEMPERATURE`
         (falls back to 0.7). Unspecified `max_tool_iterations` reads
-        `AGARTHA_MAX_TOOL_ITERATIONS` (falls back to 10).
+        `AGARTHA_MAX_TOOL_ITERATIONS` (falls back to 10). Unspecified
+        `parallel_tools` reads `AGARTHA_PARALLEL_TOOLS` (falls back to True).
         """
         if temperature is None:
             temperature = get_default_temperature()
         if max_tool_iterations is None:
             max_tool_iterations = get_max_tool_iterations()
+        if parallel_tools is None:
+            parallel_tools = get_parallel_tools()
         messages = self._to_messages(prompt)
 
         # Fast path: no tools → single round-trip.
@@ -365,13 +389,9 @@ class Agartha:
                 content=response.text or None,
                 tool_calls=response.tool_calls,
             ))
-            # Dispatch every tool call in this turn concurrently, then append
-            # results in the original order. Independent calls (notably
-            # parallel sub-agent fan-out) run at the same time; the stable
-            # ordering keeps the message sequence deterministic.
-            contents = await asyncio.gather(*(
-                self._dispatch_with_middleware(tc) for tc in response.tool_calls
-            ))
+            contents = await self._dispatch_tool_calls(
+                response.tool_calls, parallel=parallel_tools,
+            )
             for tc, content in zip(response.tool_calls, contents, strict=True):
                 messages.append(Message(
                     role="tool",

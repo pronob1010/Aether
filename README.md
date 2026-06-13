@@ -144,7 +144,9 @@ report = await coordinator.run_text("Summarize today's date and timezone facts."
 
 When a coordinator emits several delegation (or tool) calls in one turn they
 are dispatched **concurrently** (`asyncio.gather`), with results fed back in
-the original order. Nested delegation is **depth-bounded**
+the original order. Force strictly sequential dispatch — for tools or
+middleware that share mutable state — with `complete(..., parallel_tools=False)`
+or `AGARTHA_PARALLEL_TOOLS=0`. Nested delegation is **depth-bounded**
 (`AGARTHA_MAX_DELEGATION_DEPTH`, default 3, or `as_tool(max_depth=N)`): once the
 limit is reached, further delegation is refused with an error the model sees,
 rather than recursing without bound.

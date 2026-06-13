@@ -61,6 +61,18 @@ def get_max_delegation_depth() -> int:
     return _int_env("AGARTHA_MAX_DELEGATION_DEPTH", 3)
 
 
+def get_parallel_tools() -> bool:
+    """Whether multiple tool calls in one turn are dispatched concurrently.
+
+    Defaults to True — independent tools and sub-agent fan-out run at the same
+    time (results are still appended in the original order). Set
+    `AGARTHA_PARALLEL_TOOLS=0` (or pass `parallel_tools=False` to `complete()`)
+    to force strictly sequential dispatch when tools/middleware share mutable
+    state and can't tolerate concurrency.
+    """
+    return _bool_env("AGARTHA_PARALLEL_TOOLS", True)
+
+
 # --- LLM request defaults ----------------------------------------------
 
 def get_default_temperature() -> float:
