@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import os
 import time
@@ -364,8 +365,14 @@ class Agartha:
                 content=response.text or None,
                 tool_calls=response.tool_calls,
             ))
-            for tc in response.tool_calls:
-                content = await self._dispatch_with_middleware(tc)
+            # Dispatch every tool call in this turn concurrently, then append
+            # results in the original order. Independent calls (notably
+            # parallel sub-agent fan-out) run at the same time; the stable
+            # ordering keeps the message sequence deterministic.
+            contents = await asyncio.gather(*(
+                self._dispatch_with_middleware(tc) for tc in response.tool_calls
+            ))
+            for tc, content in zip(response.tool_calls, contents, strict=True):
                 messages.append(Message(
                     role="tool",
                     content=content,

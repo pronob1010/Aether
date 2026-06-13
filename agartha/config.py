@@ -48,6 +48,19 @@ def get_max_tool_iterations() -> int:
     return _int_env("AGARTHA_MAX_TOOL_ITERATIONS", 10)
 
 
+def get_max_delegation_depth() -> int:
+    """How many nested levels of sub-agent delegation are allowed.
+
+    A top-level run is depth 0; each `Agent.as_tool()` delegation goes one
+    level deeper. When the limit is reached, further delegation is refused with
+    an error string (the model sees it) rather than recursing without bound.
+
+    Override via `AGARTHA_MAX_DELEGATION_DEPTH`, or per-tool with
+    `Agent.as_tool(max_depth=N)`. Falls back to 3.
+    """
+    return _int_env("AGARTHA_MAX_DELEGATION_DEPTH", 3)
+
+
 # --- LLM request defaults ----------------------------------------------
 
 def get_default_temperature() -> float:

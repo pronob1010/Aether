@@ -16,10 +16,18 @@ agent can call, so a coordinator can delegate sub-tasks. The delegated run is an
 ordinary tool call inside the parent's loop, so it reuses tool dispatch, the
 middleware pipeline, events, and cost tracking for free.
 """
+from contextvars import ContextVar
+
 from agartha.client import Agartha
+from agartha.config import get_max_delegation_depth
 from agartha.llm.contracts import LLMProvider, LLMResponse, Message
 from agartha.middleware import Middleware
 from agartha.tools import register_tool
+
+# Current sub-agent delegation depth. A ContextVar so the value propagates down
+# the nested await chain (parent run -> delegate tool -> child run) and is
+# copied — and thus isolated — into each branch of a parallel fan-out.
+_delegation_depth: ContextVar[int] = ContextVar("agartha_delegation_depth", default=0)
 
 
 class Agent:
@@ -86,6 +94,7 @@ class Agent:
         *,
         name: str | None = None,
         description: str | None = None,
+        max_depth: int | None = None,
     ) -> str:
         """Register this agent as a tool another agent can call, and return its
         tool name.
@@ -93,6 +102,12 @@ class Agent:
         The returned name goes in a coordinator's `tools=[...]`; when the
         coordinator calls it, the parent loop dispatches a fresh run of this
         agent with the given task and feeds the answer back as the tool result.
+        When a coordinator emits several delegation calls in one turn, the
+        client dispatches them concurrently (see `Agartha.complete`).
+
+        Delegation is bounded: once `max_depth` nested levels are reached
+        (default from `AGARTHA_MAX_DELEGATION_DEPTH`), a further delegation is
+        refused with an error string instead of recursing without bound.
         """
         tool_name = name or self.name
         tool_description = (
@@ -108,6 +123,17 @@ class Agent:
             Args:
                 task: A self-contained description of the sub-task to perform.
             """
-            return await self.run_text(task)
+            limit = max_depth if max_depth is not None else get_max_delegation_depth()
+            depth = _delegation_depth.get()
+            if depth >= limit:
+                return (
+                    f"Error: delegation depth limit ({limit}) reached; refusing "
+                    f"to delegate to {self.name!r} to avoid runaway recursion."
+                )
+            token = _delegation_depth.set(depth + 1)
+            try:
+                return await self.run_text(task)
+            finally:
+                _delegation_depth.reset(token)
 
         return tool_name
