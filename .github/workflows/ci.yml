@@ -28,7 +28,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint (ruff)
-        run: ruff check aether tests
+        run: ruff check aether tests examples
 
       - name: Type-check (mypy)
         run: mypy aether
