@@ -16,7 +16,7 @@ from aether.registry import register, register_lazy
 from aether.tools import register_tool, list_tools, get_tool
 from aether.events import EventBus
 from aether.memory import Session, SessionStore
-from aether.middleware import ResponseMiddleware, GroundingGuard
+from aether.middleware import Middleware, GroundingGuard
 
 __all__ = [
     # Entry point
@@ -28,8 +28,8 @@ __all__ = [
     "TextPart",
     "ImagePart",
     "DocumentPart",
-    # Response middleware ("result layers")
-    "ResponseMiddleware",
+    # Middleware pipeline (before_request / on_tool_call / after_response)
+    "Middleware",
     "GroundingGuard",
     # Sessions (stateful conversations)
     "Session",

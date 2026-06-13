@@ -46,7 +46,7 @@ from aether.llm.contracts import (
     Message,
 )
 from aether.memory import Session, SessionStore
-from aether.middleware import ResponseMiddleware
+from aether.middleware import Middleware
 from aether.registry import REGISTRY, list_kind
 from aether.tools.registry import dispatch_tool
 
@@ -121,7 +121,7 @@ class Aether:
         with_cost_tracking: bool = True,
         events: EventBus | None = None,
         memory_store: SessionStore | None = None,
-        response_middleware: list[ResponseMiddleware] | None = None,
+        middleware: list[Middleware] | None = None,
     ):
         if provider is not None and config is not None:
             raise ValueError("Pass either `provider` or `config`, not both.")
@@ -130,8 +130,9 @@ class Aether:
         # Default: each client gets its own.
         self.events = events or EventBus()
 
-        # Result layers applied to the final answer of complete()/ask().
-        self._response_middleware = list(response_middleware or [])
+        # Pipeline middleware: before_request / on_tool_call / after_response
+        # hooks the loop calls into. Empty by default (pure pass-through).
+        self._middleware = list(middleware or [])
 
         # Session store + a per-client cache so `client.session("id")` always
         # returns the same Session object (in-process consistency).
@@ -255,20 +256,52 @@ class Aether:
             return [Message(role="user", content=prompt)]
         return prompt
 
-    async def _apply_response_middleware(
+    async def _apply_before_request(self, request: LLMRequest) -> LLMRequest:
+        """Thread the request through each middleware's `before_request` hook."""
+        for mw in self._middleware:
+            result = mw.before_request(request)
+            if inspect.isawaitable(result):
+                result = await result
+            request = result
+        return request
+
+    async def _apply_after_response(
         self, request: LLMRequest, response: LLMResponse
     ) -> LLMResponse:
-        """Run the configured result layers over a final answer, in order.
-
-        Each middleware may return the response unchanged, a modified copy, or
-        raise to reject. Sync and async `process` are both supported.
-        """
-        for mw in self._response_middleware:
-            result = mw.process(request, response)
+        """Thread the final answer through each middleware's `after_response`
+        hook. A hook may return a modified response or raise to reject."""
+        for mw in self._middleware:
+            result = mw.after_response(request, response)
             if inspect.isawaitable(result):
                 result = await result
             response = result
         return response
+
+    async def _tool_override(self, tc) -> str | None:
+        """Return the first non-None `on_tool_call` decision, or None to run
+        the tool normally."""
+        for mw in self._middleware:
+            result = mw.on_tool_call(tc)
+            if inspect.isawaitable(result):
+                result = await result
+            if result is not None:
+                return result
+        return None
+
+    async def _dispatch_with_middleware(self, tc) -> str:
+        """Dispatch a tool, unless middleware overrides the result first.
+
+        An override skips execution but still emits tool.start/complete so the
+        decision stays observable.
+        """
+        override = await self._tool_override(tc)
+        if override is None:
+            return await self._dispatch_with_events(tc)
+        await self.events.emit(TOOL_START, ToolStartEvent(call=tc))
+        await self.events.emit(TOOL_COMPLETE, ToolCompleteEvent(
+            call=tc, result=override, duration_seconds=0.0,
+        ))
+        return override
 
     async def complete(
         self,
@@ -301,13 +334,13 @@ class Aether:
 
         # Fast path: no tools → single round-trip.
         if not tools:
-            request = LLMRequest(
+            req = await self._apply_before_request(LLMRequest(
                 messages=messages,
                 model=model,
                 temperature=temperature,
-            )
-            response = await self._complete_with_events(request)
-            return await self._apply_response_middleware(request, response)
+            ))
+            resp = await self._complete_with_events(req)
+            return await self._apply_after_response(req, resp)
 
         # Tool loop: each iteration is one LLM call. If the LLM emits
         # tool_calls, dispatch them, append the results as messages, and
@@ -316,15 +349,15 @@ class Aether:
         response: LLMResponse | None = None
         request: LLMRequest | None = None
         for _ in range(max_tool_iterations + 1):
-            request = LLMRequest(
+            request = await self._apply_before_request(LLMRequest(
                 messages=messages,
                 model=model,
                 temperature=temperature,
                 tools=tools,
-            )
+            ))
             response = await self._complete_with_events(request)
             if not response.tool_calls:
-                return await self._apply_response_middleware(request, response)
+                return await self._apply_after_response(request, response)
 
             messages.append(Message(
                 role="assistant",
@@ -332,7 +365,7 @@ class Aether:
                 tool_calls=response.tool_calls,
             ))
             for tc in response.tool_calls:
-                content = await self._dispatch_with_events(tc)
+                content = await self._dispatch_with_middleware(tc)
                 messages.append(Message(
                     role="tool",
                     content=content,
@@ -345,7 +378,7 @@ class Aether:
         # rather than assert so the check survives `python -O`.
         if response is None or request is None:
             raise RuntimeError("tool loop produced no response")
-        return await self._apply_response_middleware(request, response)
+        return await self._apply_after_response(request, response)
 
     async def ask(
         self,
