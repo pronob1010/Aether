@@ -110,6 +110,38 @@ Three reference tools ship under `agartha.extensions.tools`:
 import agartha.extensions.tools  # registers get_current_time, http_get, read_file
 ```
 
+### Agents & sub-agent delegation
+
+An `Agent` is a reusable bundle of instructions + tools + model you declare
+once and run many times — the framework owns the loop:
+
+```python
+from agartha import Agent
+
+researcher = Agent(
+    "researcher",
+    instructions="Answer questions using the available tools.",
+    tools=["http_get", "get_current_time"],
+)
+answer = await researcher.run_text("What time is it in UTC?")
+```
+
+Agents compose. `agent.as_tool()` exposes an agent as a tool another agent can
+call, so a coordinator can split a task across sub-agents — the delegated run
+is an ordinary tool call inside the parent's loop, reusing tool dispatch,
+middleware, events, and cost tracking:
+
+```python
+summarizer = Agent("summarizer", instructions="Summarize text concisely.")
+
+coordinator = Agent(
+    "coordinator",
+    instructions="Delegate research, then summarize the findings.",
+    tools=[researcher.as_tool(), summarizer.as_tool()],
+)
+report = await coordinator.run_text("Summarize today's date and timezone facts.")
+```
+
 ### Cost tracking
 
 On by default. Reports tokens and (where pricing is known) dollar cost:

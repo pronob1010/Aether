@@ -8,6 +8,7 @@ observability.
 """
 
 from agartha.client import Agartha
+from agartha.agent import Agent
 from agartha.llm import LLMProvider, LLMRequest, LLMResponse, Message, ToolCall, ask
 from agartha.llm.contracts import TextPart, ImagePart, DocumentPart
 from agartha.extensions.llm.registry import register_provider
@@ -21,6 +22,8 @@ from agartha.middleware import Middleware, GroundingGuard
 __all__ = [
     # Entry point
     "Agartha",
+    # Declarative agent runtime (+ sub-agent delegation via .as_tool())
+    "Agent",
     # Conversation primitives
     "Message",
     "ToolCall",
