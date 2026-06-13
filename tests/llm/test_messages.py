@@ -4,15 +4,15 @@ Tool calling builds on top of this; these tests pin the contract so the
 later tool-loop tests have a stable base.
 """
 import pytest
-from aether import Aether, Message
-from aether.llm.contracts import LLMRequest
-from aether.extensions.llm.fake import FakeProvider
+from agartha import Agartha, Message
+from agartha.llm.contracts import LLMRequest
+from agartha.extensions.llm.fake import FakeProvider
 
 
 @pytest.mark.asyncio
 async def test_string_prompt_is_wrapped_into_single_user_message():
     fake = FakeProvider()
-    client = Aether(fake)
+    client = Agartha(fake)
     await client.ask("hello")
     sent = fake.calls[0]
     assert len(sent.messages) == 1
@@ -23,7 +23,7 @@ async def test_string_prompt_is_wrapped_into_single_user_message():
 @pytest.mark.asyncio
 async def test_message_list_passes_through_unchanged():
     fake = FakeProvider()
-    client = Aether(fake)
+    client = Agartha(fake)
     convo = [
         Message(role="system", content="You are terse."),
         Message(role="user",   content="hi"),
@@ -53,7 +53,7 @@ async def test_fake_provider_input_tokens_count_last_user_message():
 @pytest.mark.asyncio
 async def test_stream_accepts_message_list():
     fake = FakeProvider(canned_response="a b")
-    client = Aether(fake)
+    client = Agartha(fake)
     convo = [
         Message(role="system", content="be brief"),
         Message(role="user", content="say it"),

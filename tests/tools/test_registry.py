@@ -1,8 +1,8 @@
 """Tool registry — @register_tool decorator + dispatch."""
 import pytest
-from aether import register_tool, list_tools, get_tool
-from aether.tools.registry import dispatch_tool, TOOL_KIND, ToolArgumentError
-from aether.registry import REGISTRY
+from agartha import register_tool, list_tools, get_tool
+from agartha.tools.registry import dispatch_tool, TOOL_KIND, ToolArgumentError
+from agartha.registry import REGISTRY
 
 
 @pytest.fixture

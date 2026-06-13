@@ -1,13 +1,13 @@
-"""Reference tools shipped under aether.extensions.tools."""
+"""Reference tools shipped under agartha.extensions.tools."""
 import pytest
 import tempfile
 from pathlib import Path
-from aether.tools import list_tools, get_tool
-from aether.tools.registry import dispatch_tool
+from agartha.tools import list_tools, get_tool
+from agartha.tools.registry import dispatch_tool
 
 
 # Importing the package triggers registration of all 3 reference tools.
-import aether.extensions.tools  # noqa: F401
+import agartha.extensions.tools  # noqa: F401
 
 
 def test_all_reference_tools_register():
@@ -74,7 +74,7 @@ async def test_read_file_on_directory_returns_error(tmp_path):
 
 @pytest.mark.asyncio
 async def test_read_file_root_allows_path_inside(tmp_path, monkeypatch):
-    monkeypatch.setenv("AETHER_FILE_TOOL_ROOT", str(tmp_path))
+    monkeypatch.setenv("AGARTHA_FILE_TOOL_ROOT", str(tmp_path))
     p = tmp_path / "ok.txt"
     p.write_text("inside\n")
     result = await dispatch_tool("read_file", {"path": str(p)})
@@ -87,7 +87,7 @@ async def test_read_file_root_blocks_path_outside(tmp_path, monkeypatch):
     root.mkdir()
     outside = tmp_path / "secret.txt"
     outside.write_text("top secret\n")
-    monkeypatch.setenv("AETHER_FILE_TOOL_ROOT", str(root))
+    monkeypatch.setenv("AGARTHA_FILE_TOOL_ROOT", str(root))
     result = await dispatch_tool("read_file", {"path": str(outside)})
     assert "Error" in result
     assert "outside the allowed root" in result
@@ -98,7 +98,7 @@ async def test_read_file_root_blocks_traversal(tmp_path, monkeypatch):
     root = tmp_path / "sandbox"
     root.mkdir()
     (tmp_path / "secret.txt").write_text("top secret\n")
-    monkeypatch.setenv("AETHER_FILE_TOOL_ROOT", str(root))
+    monkeypatch.setenv("AGARTHA_FILE_TOOL_ROOT", str(root))
     result = await dispatch_tool(
         "read_file", {"path": str(root / ".." / "secret.txt")}
     )
@@ -136,7 +136,7 @@ async def test_http_get_blocks_cloud_metadata_ip():
 
 @pytest.mark.asyncio
 async def test_http_get_host_not_in_allowlist_refused(monkeypatch):
-    monkeypatch.setenv("AETHER_HTTP_TOOL_ALLOWED_HOSTS", "example.com,api.test")
+    monkeypatch.setenv("AGARTHA_HTTP_TOOL_ALLOWED_HOSTS", "example.com,api.test")
     result = await dispatch_tool("http_get", {"url": "https://evil.example/"})
     assert "Error" in result
     assert "ALLOWED_HOSTS" in result
@@ -147,10 +147,10 @@ def test_http_get_allow_private_escape_hatch(monkeypatch):
 
     Tests the guard directly to avoid an actual network connection (http_get
     leaves connection errors to the tool-loop wrapper, not its own body)."""
-    from aether.extensions.tools.http import _ssrf_check
+    from agartha.extensions.tools.http import _ssrf_check
 
     assert _ssrf_check("http://127.0.0.1/") is not None  # blocked by default
-    monkeypatch.setenv("AETHER_HTTP_TOOL_ALLOW_PRIVATE", "1")
+    monkeypatch.setenv("AGARTHA_HTTP_TOOL_ALLOW_PRIVATE", "1")
     assert _ssrf_check("http://127.0.0.1/") is None  # now allowed
 
 

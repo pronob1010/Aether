@@ -7,17 +7,17 @@ from types import SimpleNamespace
 
 import pytest
 
-from aether import register_tool
-from aether.extensions.llm.anthropic import (
+from agartha import register_tool
+from agartha.extensions.llm.anthropic import (
     AnthropicProvider,
     _split_system,
     _to_anthropic_messages,
     _tools_payload,
 )
-from aether.extensions.llm.registry import LLM_PROVIDER_KIND
-from aether.llm.contracts import LLMRequest, Message, ToolCall
-from aether.registry import REGISTRY, list_kind
-from aether.tools.registry import dispatch_tool  # noqa: F401 (registry side effects)
+from agartha.extensions.llm.registry import LLM_PROVIDER_KIND
+from agartha.llm.contracts import LLMRequest, Message, ToolCall
+from agartha.registry import REGISTRY, list_kind
+from agartha.tools.registry import dispatch_tool  # noqa: F401 (registry side effects)
 
 # --- Registration --------------------------------------------------------
 

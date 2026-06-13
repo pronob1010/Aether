@@ -1,6 +1,6 @@
 """Auto-generated JSON Schema from Python function signatures."""
 from typing import Optional
-from aether.tools.schema import tool_schema
+from agartha.tools.schema import tool_schema
 
 
 def test_basic_types_map_correctly():

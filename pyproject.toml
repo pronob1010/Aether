@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "aether"
+name = "agartha"
 version = "0.0.1"
 description = "A Python framework for building AI-native applications: provider abstraction, tool registries, memory, resilience, and observability."
 readme = "README.md"
@@ -48,11 +48,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pronob1010/aether"
-Repository = "https://github.com/pronob1010/aether"
+Homepage = "https://github.com/pronob1010/agartha"
+Repository = "https://github.com/pronob1010/agartha"
 
 [tool.hatch.build.targets.wheel]
-packages = ["aether"]
+packages = ["agartha"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

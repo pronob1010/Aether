@@ -1,16 +1,16 @@
 import pytest
 from typing import AsyncIterator
-from aether import Aether, UsageStats
-from aether.llm.contracts import LLMRequest, LLMResponse, LLMStreamChunk, Message
-from aether.extensions.llm.fake import FakeProvider
-from aether.extensions.llm.cost_tracking import (
+from agartha import Agartha, UsageStats
+from agartha.llm.contracts import LLMRequest, LLMResponse, LLMStreamChunk, Message
+from agartha.extensions.llm.fake import FakeProvider
+from agartha.extensions.llm.cost_tracking import (
     CostTrackingProvider,
     DEFAULT_PRICING,
     ModelPricing,
     TokenUsage,
 )
-from aether.extensions.llm.retrying import RetryingProvider
-from aether.extensions.llm.builder import (
+from agartha.extensions.llm.retrying import RetryingProvider
+from agartha.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
     CostTrackingConfig,
@@ -135,11 +135,11 @@ def test_total_cost_skips_models_without_pricing():
     assert stats.total_cost_usd == 2.50
 
 
-# --- Aether facade integration ------------------------------------------
+# --- Agartha facade integration ------------------------------------------
 
 @pytest.mark.asyncio
-async def test_aether_usage_exposes_stats_when_tracking_on():
-    client = Aether(config=ProviderConfig(
+async def test_agartha_usage_exposes_stats_when_tracking_on():
+    client = Agartha(config=ProviderConfig(
         name="fake",
         cost_tracking=CostTrackingConfig(),
     ))
@@ -148,18 +148,18 @@ async def test_aether_usage_exposes_stats_when_tracking_on():
 
 
 @pytest.mark.asyncio
-async def test_aether_usage_returns_empty_when_tracking_off():
+async def test_agartha_usage_returns_empty_when_tracking_off():
     """No surprises — property always callable, just shows zeros."""
-    client = Aether(config=ProviderConfig(name="fake"))
+    client = Agartha(config=ProviderConfig(name="fake"))
     await client.ask("hi")
     assert client.usage.total_requests == 0
     assert isinstance(client.usage, UsageStats)
 
 
 @pytest.mark.asyncio
-async def test_aether_usage_walks_through_retry_wrapper():
+async def test_agartha_usage_walks_through_retry_wrapper():
     """Cost tracking sits OUTSIDE retry — usage should be reachable through it."""
-    client = Aether(config=ProviderConfig(
+    client = Agartha(config=ProviderConfig(
         name="fake",
         retry=RetryConfig(max_attempts=2, min_wait=0.01, max_wait=0.02),
         cost_tracking=CostTrackingConfig(),

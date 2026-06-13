@@ -1,15 +1,15 @@
 import pytest
-from aether import Aether, register, register_provider
-from aether.llm.contracts import LLMRequest, LLMResponse
-from aether.extensions.llm.factory import make_provider
-from aether.extensions.llm.registry import LLM_PROVIDER_KIND
-from aether.extensions.llm.builder import (
+from agartha import Agartha, register, register_provider
+from agartha.llm.contracts import LLMRequest, LLMResponse
+from agartha.extensions.llm.factory import make_provider
+from agartha.extensions.llm.registry import LLM_PROVIDER_KIND
+from agartha.extensions.llm.builder import (
     ProviderConfig,
     RetryConfig,
     build_provider,
 )
-from aether.extensions.llm.retrying import RetryingProvider
-from aether.registry import REGISTRY, get, list_kind
+from agartha.extensions.llm.retrying import RetryingProvider
+from agartha.registry import REGISTRY, get, list_kind
 
 
 @pytest.fixture
@@ -93,7 +93,7 @@ async def test_registered_provider_works_via_facade(cleanup_registry, monkeypatc
 
     monkeypatch.setenv("LLM_PROVIDER", "my_llm")
     monkeypatch.setenv("MY_LLM_KEY", "secret-key")
-    client = Aether(with_retry=False, with_circuit_breaker=False)
+    client = Agartha(with_retry=False, with_circuit_breaker=False)
     answer = await client.ask("ping")
     assert answer == "hello from secret-key"
 

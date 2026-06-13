@@ -1,10 +1,10 @@
 """Middleware pipeline — before_request / on_tool_call / after_response."""
 import pytest
 
-from aether import Aether, GroundingGuard, Message, Middleware
-from aether.extensions.llm.fake import FakeProvider
-from aether.llm.contracts import LLMResponse, ToolCall
-from aether.registry import REGISTRY
+from agartha import Agartha, GroundingGuard, Message, Middleware
+from agartha.extensions.llm.fake import FakeProvider
+from agartha.llm.contracts import LLMResponse, ToolCall
+from agartha.registry import REGISTRY
 
 # --- after_response ------------------------------------------------------
 
@@ -22,26 +22,26 @@ class _Tagger(Middleware):
 
 @pytest.mark.asyncio
 async def test_after_response_transforms_final_answer():
-    client = Aether(FakeProvider(canned_response="hello"), middleware=[_Uppercase()])
+    client = Agartha(FakeProvider(canned_response="hello"), middleware=[_Uppercase()])
     assert (await client.complete("hi")).text == "HELLO"
 
 
 @pytest.mark.asyncio
 async def test_sync_and_chained_hooks_run_in_order():
-    client = Aether(FakeProvider(canned_response="hello"),
+    client = Agartha(FakeProvider(canned_response="hello"),
                     middleware=[_Uppercase(), _Tagger()])
     assert (await client.complete("hi")).text == "HELLO [checked]"
 
 
 @pytest.mark.asyncio
 async def test_after_response_applies_to_ask():
-    client = Aether(FakeProvider(canned_response="hello"), middleware=[_Uppercase()])
+    client = Agartha(FakeProvider(canned_response="hello"), middleware=[_Uppercase()])
     assert await client.ask("hi") == "HELLO"
 
 
 @pytest.mark.asyncio
 async def test_no_middleware_is_passthrough():
-    client = Aether(FakeProvider(canned_response="hello"))
+    client = Agartha(FakeProvider(canned_response="hello"))
     assert (await client.complete("hi")).text == "hello"
 
 
@@ -51,7 +51,7 @@ async def test_after_response_can_veto_by_raising():
         async def after_response(self, request, response):
             raise ValueError("blocked")
 
-    client = Aether(FakeProvider(canned_response="x"), middleware=[_Reject()])
+    client = Agartha(FakeProvider(canned_response="x"), middleware=[_Reject()])
     with pytest.raises(ValueError, match="blocked"):
         await client.complete("hi")
 
@@ -67,7 +67,7 @@ async def test_before_request_can_rewrite_the_request():
             return request.model_copy(update={"messages": msgs})
 
     fake = FakeProvider(canned_response="ok")
-    client = Aether(fake, middleware=[_InjectContext()])
+    client = Agartha(fake, middleware=[_InjectContext()])
     await client.complete("hi")
     sent = fake.calls[0].messages
     assert sent[0].role == "system" and sent[0].content == "injected"
@@ -97,7 +97,7 @@ async def test_on_tool_call_can_deny_a_tool_without_running_it():
         LLMResponse(text="done", model="fake-model", input_tokens=1, output_tokens=1),
     ])
     try:
-        client = Aether(fake, middleware=[_DenyDelete()])
+        client = Agartha(fake, middleware=[_DenyDelete()])
         result = await client.complete("clean up", tools=["delete_everything"])
     finally:
         del REGISTRY["tool"]["delete_everything"]
@@ -124,7 +124,7 @@ async def test_on_tool_call_none_lets_the_tool_run():
         LLMResponse(text="ok", model="fake-model", input_tokens=1, output_tokens=1),
     ])
     try:
-        client = Aether(fake, middleware=[Middleware()])  # base = all pass-through
+        client = Agartha(fake, middleware=[Middleware()])  # base = all pass-through
         await client.complete("go", tools=["noop"])
     finally:
         del REGISTRY["tool"]["noop"]
@@ -136,7 +136,7 @@ async def test_on_tool_call_none_lets_the_tool_run():
 
 # Helper so the tool-registering tests read cleanly.
 def register_helper(name):
-    from aether import register_tool
+    from agartha import register_tool
     return register_tool(name=name)
 
 
@@ -163,7 +163,7 @@ async def test_after_response_runs_only_on_final_answer_not_tool_rounds():
                     input_tokens=1, output_tokens=1),
     ])
     try:
-        client = Aether(fake, middleware=[_Recorder()])
+        client = Agartha(fake, middleware=[_Recorder()])
         result = await client.complete("what time?", tools=["now"])
     finally:
         del REGISTRY["tool"]["now"]
@@ -182,7 +182,7 @@ SOURCES = [
 
 @pytest.mark.asyncio
 async def test_grounding_guard_passes_supported_answer():
-    client = Aether(
+    client = Agartha(
         FakeProvider(canned_response="The Eiffel Tower was completed in 1889 in Paris."),
         middleware=[GroundingGuard(SOURCES)],
     )
@@ -192,7 +192,7 @@ async def test_grounding_guard_passes_supported_answer():
 @pytest.mark.asyncio
 async def test_grounding_guard_refuses_unsupported_answer():
     guard = GroundingGuard(SOURCES)
-    client = Aether(
+    client = Agartha(
         FakeProvider(canned_response="Mount Kilimanjaro is the tallest mountain in Africa."),
         middleware=[guard],
     )

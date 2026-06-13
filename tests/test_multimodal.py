@@ -3,10 +3,10 @@ import base64
 
 import pytest
 
-from aether import Aether, DocumentPart, ImagePart, Message, TextPart
-from aether.extensions.llm.fake import FakeProvider
-from aether.extensions.memory import SQLiteSessionStore
-from aether.llm.contracts import text_of
+from agartha import Agartha, DocumentPart, ImagePart, Message, TextPart
+from agartha.extensions.llm.fake import FakeProvider
+from agartha.extensions.memory import SQLiteSessionStore
+from agartha.llm.contracts import text_of
 
 # --- Contract ------------------------------------------------------------
 
@@ -53,7 +53,7 @@ def test_content_parts_round_trip_through_serialization():
 
 def test_openai_translation_maps_parts_to_content_blocks():
     pytest.importorskip("openai")
-    from aether.extensions.llm.openai import _openai_content
+    from agartha.extensions.llm.openai import _openai_content
 
     blocks = _openai_content([
         TextPart(text="what's in this?"),
@@ -69,13 +69,13 @@ def test_openai_translation_maps_parts_to_content_blocks():
 
 def test_openai_translation_passes_strings_through():
     pytest.importorskip("openai")
-    from aether.extensions.llm.openai import _openai_content
+    from agartha.extensions.llm.openai import _openai_content
     assert _openai_content("plain") == "plain"
 
 
 def test_anthropic_translation_maps_parts_to_source_blocks():
     # anthropic SDK is imported lazily, so this helper is import-safe.
-    from aether.extensions.llm.anthropic import _anthropic_content
+    from agartha.extensions.llm.anthropic import _anthropic_content
 
     blocks = _anthropic_content([
         TextPart(text="read this"),
@@ -98,7 +98,7 @@ def test_gemini_translation_maps_parts():
     # this environment — importorskip only catches ImportError, but a broken
     # transitive dep can raise other errors.
     try:
-        from aether.extensions.llm.gemini import _gemini_parts
+        from agartha.extensions.llm.gemini import _gemini_parts
     except BaseException:  # noqa: BLE001 - native dep can raise pyo3 PanicException
         pytest.skip("google.genai not importable in this environment")
 
@@ -114,7 +114,7 @@ def test_gemini_translation_maps_parts():
 @pytest.mark.asyncio
 async def test_complete_accepts_multimodal_turn():
     fake = FakeProvider(canned_response="ok")
-    client = Aether(fake)
+    client = Agartha(fake)
     await client.complete([Message(role="user", content=[
         TextPart(text="summarize this"),
         DocumentPart(media_type="application/pdf", data="QUJD"),
