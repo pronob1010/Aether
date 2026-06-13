@@ -1,6 +1,43 @@
+import inspect
 import os
 import time
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
+
+from aether.config import get_default_temperature, get_max_tool_iterations
+from aether.events import (
+    REQUEST_COMPLETE,
+    REQUEST_ERROR,
+    REQUEST_START,
+    STREAM_CHUNK,
+    STREAM_COMPLETE,
+    STREAM_ERROR,
+    STREAM_START,
+    TOOL_COMPLETE,
+    TOOL_ERROR,
+    TOOL_START,
+    EventBus,
+    Handler,
+    RequestCompleteEvent,
+    RequestErrorEvent,
+    RequestStartEvent,
+    StreamChunkEvent,
+    StreamCompleteEvent,
+    StreamErrorEvent,
+    StreamStartEvent,
+    ToolCompleteEvent,
+    ToolErrorEvent,
+    ToolStartEvent,
+)
+from aether.extensions.llm.builder import (
+    CircuitBreakerConfig,
+    CostTrackingConfig,
+    ProviderConfig,
+    RetryConfig,
+    build_provider,
+)
+from aether.extensions.llm.cost_tracking import CostTrackingProvider, UsageStats
+from aether.extensions.llm.registry import LLM_PROVIDER_KIND
+from aether.extensions.memory import InMemorySessionStore
 from aether.llm.contracts import (
     LLMProvider,
     LLMRequest,
@@ -8,30 +45,10 @@ from aether.llm.contracts import (
     LLMStreamChunk,
     Message,
 )
-from aether.extensions.llm.builder import (
-    ProviderConfig,
-    RetryConfig,
-    CircuitBreakerConfig,
-    CostTrackingConfig,
-    build_provider,
-)
-from aether.extensions.llm.cost_tracking import CostTrackingProvider, UsageStats
-from aether.registry import REGISTRY, list_kind
-from aether.extensions.llm.registry import LLM_PROVIDER_KIND
-from aether.tools.registry import dispatch_tool
-from aether.config import get_default_temperature, get_max_tool_iterations
-from aether.events import (
-    EventBus,
-    Handler,
-    REQUEST_START, REQUEST_COMPLETE, REQUEST_ERROR,
-    STREAM_START, STREAM_CHUNK, STREAM_COMPLETE, STREAM_ERROR,
-    TOOL_START, TOOL_COMPLETE, TOOL_ERROR,
-    RequestStartEvent, RequestCompleteEvent, RequestErrorEvent,
-    StreamStartEvent, StreamChunkEvent, StreamCompleteEvent, StreamErrorEvent,
-    ToolStartEvent, ToolCompleteEvent, ToolErrorEvent,
-)
 from aether.memory import Session, SessionStore
-from aether.extensions.memory import InMemorySessionStore
+from aether.middleware import ResponseMiddleware
+from aether.registry import REGISTRY, list_kind
+from aether.tools.registry import dispatch_tool
 
 
 def _config_from_env(
@@ -104,6 +121,7 @@ class Aether:
         with_cost_tracking: bool = True,
         events: EventBus | None = None,
         memory_store: SessionStore | None = None,
+        response_middleware: list[ResponseMiddleware] | None = None,
     ):
         if provider is not None and config is not None:
             raise ValueError("Pass either `provider` or `config`, not both.")
@@ -111,6 +129,9 @@ class Aether:
         # Share an EventBus across clients by passing the same instance.
         # Default: each client gets its own.
         self.events = events or EventBus()
+
+        # Result layers applied to the final answer of complete()/ask().
+        self._response_middleware = list(response_middleware or [])
 
         # Session store + a per-client cache so `client.session("id")` always
         # returns the same Session object (in-process consistency).
@@ -234,6 +255,21 @@ class Aether:
             return [Message(role="user", content=prompt)]
         return prompt
 
+    async def _apply_response_middleware(
+        self, request: LLMRequest, response: LLMResponse
+    ) -> LLMResponse:
+        """Run the configured result layers over a final answer, in order.
+
+        Each middleware may return the response unchanged, a modified copy, or
+        raise to reject. Sync and async `process` are both supported.
+        """
+        for mw in self._response_middleware:
+            result = mw.process(request, response)
+            if inspect.isawaitable(result):
+                result = await result
+            response = result
+        return response
+
     async def complete(
         self,
         prompt: str | list[Message],
@@ -265,26 +301,30 @@ class Aether:
 
         # Fast path: no tools → single round-trip.
         if not tools:
-            return await self._complete_with_events(LLMRequest(
+            request = LLMRequest(
                 messages=messages,
                 model=model,
                 temperature=temperature,
-            ))
+            )
+            response = await self._complete_with_events(request)
+            return await self._apply_response_middleware(request, response)
 
         # Tool loop: each iteration is one LLM call. If the LLM emits
         # tool_calls, dispatch them, append the results as messages, and
         # call again. Stop when the LLM produces a response with no more
         # tool calls, or when the iteration cap is hit.
         response: LLMResponse | None = None
+        request: LLMRequest | None = None
         for _ in range(max_tool_iterations + 1):
-            response = await self._complete_with_events(LLMRequest(
+            request = LLMRequest(
                 messages=messages,
                 model=model,
                 temperature=temperature,
                 tools=tools,
-            ))
+            )
+            response = await self._complete_with_events(request)
             if not response.tool_calls:
-                return response
+                return await self._apply_response_middleware(request, response)
 
             messages.append(Message(
                 role="assistant",
@@ -301,11 +341,11 @@ class Aether:
 
         # Hit the iteration cap — return the last response (likely still
         # asking for tools, but the caller said "give up after N"). The loop
-        # always runs at least once, so response is set; guard explicitly
+        # always runs at least once, so both are set; guard explicitly
         # rather than assert so the check survives `python -O`.
-        if response is None:
+        if response is None or request is None:
             raise RuntimeError("tool loop produced no response")
-        return response
+        return await self._apply_response_middleware(request, response)
 
     async def ask(
         self,

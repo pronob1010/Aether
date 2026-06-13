@@ -19,11 +19,15 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from aether.llm.contracts import (
+    DocumentPart,
+    ImagePart,
     LLMRequest,
     LLMResponse,
     LLMStreamChunk,
     Message,
+    TextPart,
     ToolCall,
+    text_of,
 )
 from aether.tools import get_tool
 
@@ -34,10 +38,43 @@ def _split_system(messages: list[Message]) -> tuple[str | None, list[Message]]:
     conversation: list[Message] = []
     for msg in messages:
         if msg.role == "system" and msg.content:
-            system_parts.append(msg.content)
+            system_parts.append(text_of(msg.content))
         else:
             conversation.append(msg)
     return ("\n".join(system_parts) if system_parts else None, conversation)
+
+
+def _anthropic_content(content: Any) -> Any:
+    """Translate a Message's content into Anthropic's content format.
+
+    Plain strings pass through unchanged; a list of parts becomes the
+    content-block array (text + image + document source blocks).
+    """
+    if not isinstance(content, list):
+        return content
+    blocks: list[dict[str, Any]] = []
+    for part in content:
+        if isinstance(part, TextPart):
+            blocks.append({"type": "text", "text": part.text})
+        elif isinstance(part, ImagePart):
+            blocks.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": part.media_type,
+                    "data": part.data,
+                },
+            })
+        elif isinstance(part, DocumentPart):
+            blocks.append({
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": part.media_type,
+                    "data": part.data,
+                },
+            })
+    return blocks
 
 
 def _to_anthropic_messages(messages: list[Message]) -> list[dict[str, Any]]:
@@ -67,7 +104,7 @@ def _to_anthropic_messages(messages: list[Message]) -> list[dict[str, Any]]:
                 }],
             })
         elif msg.role in ("user", "assistant") and msg.content is not None:
-            out.append({"role": msg.role, "content": msg.content})
+            out.append({"role": msg.role, "content": _anthropic_content(msg.content)})
     return out
 
 

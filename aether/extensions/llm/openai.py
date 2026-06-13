@@ -1,14 +1,45 @@
 import json
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
+
 from openai import AsyncOpenAI
+
 from aether.llm.contracts import (
+    DocumentPart,
+    ImagePart,
     LLMRequest,
     LLMResponse,
     LLMStreamChunk,
     Message,
+    TextPart,
     ToolCall,
 )
 from aether.tools import get_tool
+
+
+def _openai_content(content: Any) -> Any:
+    """Translate a Message's content into OpenAI's content format.
+
+    Plain strings pass through unchanged; a list of parts becomes the
+    multimodal content-block array (text + image_url + file).
+    """
+    if not isinstance(content, list):
+        return content
+    blocks: list[dict[str, Any]] = []
+    for part in content:
+        if isinstance(part, TextPart):
+            blocks.append({"type": "text", "text": part.text})
+        elif isinstance(part, ImagePart):
+            blocks.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{part.media_type};base64,{part.data}"},
+            })
+        elif isinstance(part, DocumentPart):
+            blocks.append({
+                "type": "file",
+                "file": {"file_data": f"data:{part.media_type};base64,{part.data}"},
+            })
+    return blocks
 
 
 def _to_openai_messages(messages: list[Message]) -> list[dict[str, Any]]:
@@ -17,7 +48,7 @@ def _to_openai_messages(messages: list[Message]) -> list[dict[str, Any]]:
     for msg in messages:
         d: dict[str, Any] = {"role": msg.role}
         if msg.content is not None:
-            d["content"] = msg.content
+            d["content"] = _openai_content(msg.content)
         if msg.role == "assistant" and msg.tool_calls:
             d["tool_calls"] = [
                 {

@@ -9,12 +9,14 @@ observability.
 
 from aether.client import Aether
 from aether.llm import LLMProvider, LLMRequest, LLMResponse, Message, ToolCall, ask
+from aether.llm.contracts import TextPart, ImagePart, DocumentPart
 from aether.extensions.llm.registry import register_provider
 from aether.extensions.llm.cost_tracking import UsageStats, TokenUsage, ModelPricing
 from aether.registry import register, register_lazy
 from aether.tools import register_tool, list_tools, get_tool
 from aether.events import EventBus
 from aether.memory import Session, SessionStore
+from aether.middleware import ResponseMiddleware, GroundingGuard
 
 __all__ = [
     # Entry point
@@ -22,6 +24,13 @@ __all__ = [
     # Conversation primitives
     "Message",
     "ToolCall",
+    # Multimodal message content (documents / images on a turn)
+    "TextPart",
+    "ImagePart",
+    "DocumentPart",
+    # Response middleware ("result layers")
+    "ResponseMiddleware",
+    "GroundingGuard",
     # Sessions (stateful conversations)
     "Session",
     "SessionStore",
