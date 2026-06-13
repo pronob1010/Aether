@@ -5,18 +5,33 @@ and async handlers both work, that subscriber errors are isolated, and
 that buses can be shared across clients.
 """
 import asyncio
+
 import pytest
+
 from aether import Aether, EventBus, register_tool
-from aether.llm.contracts import LLMResponse, ToolCall
-from aether.extensions.llm.fake import FakeProvider
 from aether.events import (
-    REQUEST_START, REQUEST_COMPLETE, REQUEST_ERROR,
-    STREAM_START, STREAM_CHUNK, STREAM_COMPLETE, STREAM_ERROR,
-    TOOL_START, TOOL_COMPLETE, TOOL_ERROR,
-    RequestStartEvent, RequestCompleteEvent, RequestErrorEvent,
-    StreamStartEvent, StreamChunkEvent, StreamCompleteEvent, StreamErrorEvent,
-    ToolStartEvent, ToolCompleteEvent, ToolErrorEvent,
+    REQUEST_COMPLETE,
+    REQUEST_ERROR,
+    REQUEST_START,
+    STREAM_CHUNK,
+    STREAM_COMPLETE,
+    STREAM_ERROR,
+    STREAM_START,
+    TOOL_COMPLETE,
+    TOOL_ERROR,
+    TOOL_START,
+    RequestCompleteEvent,
+    RequestErrorEvent,
+    StreamChunkEvent,
+    StreamCompleteEvent,
+    StreamErrorEvent,
+    StreamStartEvent,
+    ToolCompleteEvent,
+    ToolErrorEvent,
+    ToolStartEvent,
 )
+from aether.extensions.llm.fake import FakeProvider
+from aether.llm.contracts import LLMResponse, ToolCall
 from aether.registry import REGISTRY
 
 

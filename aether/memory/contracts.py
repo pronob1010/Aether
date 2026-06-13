@@ -6,6 +6,7 @@ A `SessionStore` is anything that can `load`, `save`, `delete`, and check
 SQLite, Postgres, etc. by implementing this Protocol.
 """
 from typing import Protocol, runtime_checkable
+
 from aether.llm.contracts import Message
 
 

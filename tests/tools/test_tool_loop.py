@@ -1,9 +1,10 @@
 """End-to-end tool calling: LLM emits ToolCall, Aether dispatches it,
 result flows back, LLM produces final answer."""
 import pytest
+
 from aether import Aether, register_tool
-from aether.llm.contracts import LLMResponse, ToolCall
 from aether.extensions.llm.fake import FakeProvider
+from aether.llm.contracts import LLMResponse, ToolCall
 from aether.registry import REGISTRY
 
 

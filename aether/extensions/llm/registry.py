@@ -9,6 +9,7 @@ The actual storage lives in `aether.registry.REGISTRY`. Tests, factories,
 and other consumers can read it directly there.
 """
 import inspect
+
 from aether.registry import register, register_lazy
 
 LLM_PROVIDER_KIND = "llm_provider"

@@ -84,7 +84,10 @@ def _to_gemini_contents(messages: list[Message]) -> list[types.Content]:
     return contents
 
 
-def _tools_config(tool_names: list[str] | None) -> list[types.Tool] | None:
+# Return type is `list[Any]` (not `list[types.Tool]`) because google-genai
+# types the `tools=` param as an invariant union; `list[Any]` stays
+# assignment-compatible without a fragile per-call `type: ignore`.
+def _tools_config(tool_names: list[str] | None) -> list[Any] | None:
     if not tool_names:
         return None
     declarations: list[types.FunctionDeclaration] = []
@@ -139,8 +142,8 @@ class GeminiProvider:
         return LLMResponse(
             text=response.text or "",
             model=response.model_version or model,
-            input_tokens=usage.prompt_token_count if usage else 0,
-            output_tokens=usage.candidates_token_count if usage else 0,
+            input_tokens=(usage.prompt_token_count or 0) if usage else 0,
+            output_tokens=(usage.candidates_token_count or 0) if usage else 0,
             tool_calls=_parse_function_calls(response),
         )
 

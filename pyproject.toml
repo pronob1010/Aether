@@ -67,6 +67,10 @@ line-length = 100
 # pyupgrade (UP), bugbear (B), and flake8-comprehensions (C4).
 select = ["E", "W", "F", "I", "UP", "B", "C4"]
 
+[tool.ruff.lint.per-file-ignores]
+# Tests favor readability over line-length and allow inline one-liners.
+"tests/**" = ["E501", "E701"]
+
 [tool.mypy]
 python_version = "3.10"
 warn_unused_ignores = true

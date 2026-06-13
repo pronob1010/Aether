@@ -13,12 +13,12 @@ ToolCall, LLMResponse.tool_calls) is what carries this across providers.
 
 from aether.tools.registry import (
     TOOL_KIND,
-    ToolSpec,
     ToolArgumentError,
-    register_tool,
+    ToolSpec,
+    dispatch_tool,
     get_tool,
     list_tools,
-    dispatch_tool,
+    register_tool,
 )
 from aether.tools.schema import tool_schema
 

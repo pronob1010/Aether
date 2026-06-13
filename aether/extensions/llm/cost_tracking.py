@@ -3,9 +3,11 @@
 Sits outermost in the decorator stack so it only counts what actually
 billed (successful final outcome, not failed retries).
 """
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import AsyncIterator
+
 from pydantic import BaseModel
+
 from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse, LLMStreamChunk
 
 

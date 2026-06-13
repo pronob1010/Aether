@@ -1,15 +1,16 @@
+from collections.abc import AsyncIterator
+
 import pytest
-from typing import AsyncIterator
+
 from aether import Aether
-from aether.llm.contracts import LLMRequest, LLMStreamChunk, Message
-from aether.extensions.llm.fake import FakeProvider
-from aether.extensions.llm.retrying import RetryingProvider
 from aether.extensions.llm.circuit_breaker import (
+    CircuitBreakerOpenException,
     CircuitBreakerProvider,
     CircuitState,
-    CircuitBreakerOpenException,
 )
-
+from aether.extensions.llm.fake import FakeProvider
+from aether.extensions.llm.retrying import RetryingProvider
+from aether.llm.contracts import LLMRequest, LLMStreamChunk, Message
 
 # --- FakeProvider streaming -----------------------------------------------
 
@@ -138,7 +139,7 @@ class AlwaysFailStreamProvider:
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamChunk]:
         raise RuntimeError("backend down")
-        yield  # noqa: unreachable — marks this as an async generator
+        yield  # (unreachable) marks this as an async generator
 
 
 @pytest.mark.asyncio

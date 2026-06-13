@@ -1,4 +1,5 @@
-from aether.llm.contracts import LLMRequest, LLMProvider, Message
+from aether.llm.contracts import LLMProvider, LLMRequest, Message
+
 
 async def ask(question: str, provider: LLMProvider) -> str:
     response = await provider.complete(LLMRequest(

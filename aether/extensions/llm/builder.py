@@ -1,7 +1,8 @@
 from pydantic import BaseModel
-from aether.llm.contracts import LLMProvider
+
 from aether.extensions.llm.cost_tracking import ModelPricing
 from aether.extensions.llm.factory import make_provider
+from aether.llm.contracts import LLMProvider
 
 
 class RetryConfig(BaseModel):
@@ -33,8 +34,10 @@ class ProviderConfig(BaseModel):
 
 def build_provider(config: ProviderConfig) -> LLMProvider:
     kwargs = {}
-    if config.api_key:       kwargs["api_key"] = config.api_key
-    if config.default_model: kwargs["default_model"] = config.default_model
+    if config.api_key:
+        kwargs["api_key"] = config.api_key
+    if config.default_model:
+        kwargs["default_model"] = config.default_model
     provider = make_provider(config.name, **kwargs)
 
     # Order is load-bearing:
@@ -50,8 +53,8 @@ def build_provider(config: ProviderConfig) -> LLMProvider:
         provider = CircuitBreakerProvider(provider, **config.circuit_breaker.model_dump())
     if config.cost_tracking:
         from aether.extensions.llm.cost_tracking import (
-            CostTrackingProvider,
             DEFAULT_PRICING,
+            CostTrackingProvider,
         )
         pricing = config.cost_tracking.pricing or DEFAULT_PRICING
         provider = CostTrackingProvider(provider, pricing=pricing)

@@ -11,8 +11,8 @@ accept the same shape with minor wrapping done by their provider adapters.
 import inspect
 import re
 import types
-from typing import Any, Callable, Union, get_args, get_origin, get_type_hints
-
+from collections.abc import Callable
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 _PYTHON_TO_JSON_TYPE: dict[type, str] = {
     str: "string",

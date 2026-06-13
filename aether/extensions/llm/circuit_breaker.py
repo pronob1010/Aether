@@ -1,7 +1,8 @@
-import time
 import logging
+import time
+from collections.abc import AsyncIterator
 from enum import Enum
-from typing import AsyncIterator
+
 from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse, LLMStreamChunk
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class CircuitBreakerProvider:
         self.inner_provider = inner_provider
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
-        
+
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.last_failure_time: float = 0.0
@@ -83,10 +84,13 @@ class CircuitBreakerProvider:
     def _on_failure(self) -> None:
         self.failure_count += 1
         self.last_failure_time = time.time()
-        
+
         if self.state == CircuitState.HALF_OPEN:
             logger.warning("Circuit breaker failed in HALF_OPEN. Reverting to OPEN.")
             self.state = CircuitState.OPEN
         elif self.state == CircuitState.CLOSED and self.failure_count >= self.failure_threshold:
-            logger.warning(f"Circuit breaker failure threshold ({self.failure_threshold}) reached. Transitioning to OPEN.")
+            logger.warning(
+                f"Circuit breaker failure threshold ({self.failure_threshold}) "
+                "reached. Transitioning to OPEN."
+            )
             self.state = CircuitState.OPEN

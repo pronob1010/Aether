@@ -1,13 +1,11 @@
 """Reference tools shipped under aether.extensions.tools."""
-import pytest
-import tempfile
-from pathlib import Path
-from aether.tools import list_tools, get_tool
-from aether.tools.registry import dispatch_tool
 
+import pytest
 
 # Importing the package triggers registration of all 3 reference tools.
 import aether.extensions.tools  # noqa: F401
+from aether.tools import get_tool, list_tools
+from aether.tools.registry import dispatch_tool
 
 
 def test_all_reference_tools_register():

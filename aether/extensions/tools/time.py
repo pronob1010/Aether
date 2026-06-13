@@ -1,6 +1,7 @@
 """Current-time tool. Stdlib only — no dependencies."""
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from aether import register_tool
 
 

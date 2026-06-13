@@ -18,10 +18,11 @@ Quick start:
 import inspect
 import logging
 from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Union
-from aether.llm.contracts import LLMRequest, LLMResponse, LLMStreamChunk, ToolCall
+from typing import Any
 
+from aether.llm.contracts import LLMRequest, LLMResponse, LLMStreamChunk, ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ class ToolErrorEvent:
 
 # --- The bus -----------------------------------------------------------
 
-Handler = Callable[[Any], Union[None, Awaitable[None]]]
+Handler = Callable[[Any], None | Awaitable[None]]
 
 
 class EventBus:
