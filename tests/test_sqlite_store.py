@@ -1,11 +1,11 @@
 """Durable SQLite-backed SessionStore."""
 import pytest
 
-from agartha import Agartha, Message
-from agartha.extensions.llm.fake import FakeProvider
-from agartha.extensions.memory import SQLiteSessionStore
-from agartha.llm.contracts import ToolCall
-from agartha.memory.contracts import SessionStore
+from aether import Aether, Message
+from aether.extensions.llm.fake import FakeProvider
+from aether.extensions.memory import SQLiteSessionStore
+from aether.llm.contracts import ToolCall
+from aether.memory.contracts import SessionStore
 
 
 def _store(tmp_path) -> SQLiteSessionStore:
@@ -86,18 +86,18 @@ async def test_durable_across_instances(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_works_as_agartha_memory_store(tmp_path):
+async def test_works_as_aether_memory_store(tmp_path):
     """End-to-end: sessions persisted via the SQLite store survive a new
-    Agartha client built on the same database file."""
+    Aether client built on the same database file."""
     path = str(tmp_path / "agent.db")
     fake = FakeProvider(canned_response="ok")
 
-    client1 = Agartha(fake, memory_store=SQLiteSessionStore(path))
+    client1 = Aether(fake, memory_store=SQLiteSessionStore(path))
     session1 = client1.session("dave")
     await session1.ask("remember this")
 
     # New client, new in-process Session cache, same database.
-    client2 = Agartha(fake, memory_store=SQLiteSessionStore(path))
+    client2 = Aether(fake, memory_store=SQLiteSessionStore(path))
     session2 = client2.session("dave")
     history = await session2.history()
     assert any(m.content == "remember this" for m in history)

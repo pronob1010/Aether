@@ -3,10 +3,10 @@ import asyncio
 
 import pytest
 
-from agartha import Agent, Message
-from agartha.extensions.llm.fake import FakeProvider
-from agartha.llm.contracts import LLMResponse, ToolCall
-from agartha.registry import REGISTRY
+from aether import Agent, Message
+from aether.extensions.llm.fake import FakeProvider
+from aether.llm.contracts import LLMResponse, ToolCall
+from aether.registry import REGISTRY
 
 
 def _tool_call(name, **args):
@@ -55,9 +55,9 @@ async def test_run_accepts_message_list():
 
 
 def test_client_and_provider_are_mutually_exclusive():
-    from agartha import Agartha
+    from aether import Aether
     with pytest.raises(ValueError, match="not both"):
-        Agent("x", client=Agartha(FakeProvider()), provider=FakeProvider())
+        Agent("x", client=Aether(FakeProvider()), provider=FakeProvider())
 
 
 # --- Tools ---------------------------------------------------------------
@@ -66,7 +66,7 @@ def test_client_and_provider_are_mutually_exclusive():
 async def test_agent_runs_the_tool_loop():
     ran: list[str] = []
 
-    from agartha import register_tool
+    from aether import register_tool
 
     @register_tool(name="ping")
     def ping() -> str:
@@ -129,7 +129,7 @@ def test_as_tool_custom_name_and_description():
     agent = Agent("worker", provider=FakeProvider())
     name = agent.as_tool(name="do_work", description="Does the work.")
     try:
-        from agartha import get_tool
+        from aether import get_tool
         spec = get_tool("do_work")
         assert name == "do_work"
         assert spec.schema["description"] == "Does the work."

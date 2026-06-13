@@ -1,4 +1,4 @@
-# Agartha
+# Aether
 
 A small Python framework for building AI-native applications, organized
 around classical software-engineering patterns: Strategy, Adapter,
@@ -9,7 +9,7 @@ Decorator, Factory, Builder, Facade, and a generic Plugin Registry.
 ## Why
 
 Most LLM frameworks ship the *features* you need (streaming, retries,
-tool calling) wired together in ways you can't easily pull apart. Agartha
+tool calling) wired together in ways you can't easily pull apart. Aether
 ships the *primitives* — small typed objects you compose — plus a
 sensible facade for the 90% case.
 
@@ -25,10 +25,10 @@ Three things you can do that most frameworks make hard:
 
 ```python
 import asyncio
-from agartha import Agartha
+from aether import Aether
 
 async def main():
-    client = Agartha()                 # reads LLM_PROVIDER, OPENAI_API_KEY, ...
+    client = Aether()                 # reads LLM_PROVIDER, OPENAI_API_KEY, ...
     answer = await client.ask("What is the meaning of life?")
     print(answer)
     print(f"Spent ${client.usage.total_cost_usd:.6f}")
@@ -42,11 +42,11 @@ export OPENAI_API_KEY=sk-...
 python try_it.py
 ```
 
-`Agartha()` builds a fully resilient client by default: retry →
+`Aether()` builds a fully resilient client by default: retry →
 circuit breaker → cost tracking, in the correct nesting order.
-Opt out via `Agartha(with_retry=False, ...)`. For an explicit config,
-pass `Agartha(config=ProviderConfig(...))`. For a pre-built provider
-(testing, custom wrapping), pass `Agartha(some_provider)` positionally.
+Opt out via `Aether(with_retry=False, ...)`. For an explicit config,
+pass `Aether(config=ProviderConfig(...))`. For a pre-built provider
+(testing, custom wrapping), pass `Aether(some_provider)` positionally.
 
 ## Features
 
@@ -88,15 +88,15 @@ stream; tool dispatches fire the normal `tool.*` events.
 ### Tool calling
 
 ```python
-from agartha import Agartha, register_tool
+from aether import Aether, register_tool
 
 @register_tool(description="Add two numbers")
 def add(a: int, b: int) -> int:
     return a + b
 
-client = Agartha()
+client = Aether()
 answer = await client.ask("What is 17 + 25?", tools=["add"])
-# Agartha runs the LLM↔tool loop and returns the final assistant text.
+# Aether runs the LLM↔tool loop and returns the final assistant text.
 ```
 
 The framework auto-generates the JSON Schema from your function's
@@ -104,10 +104,10 @@ signature and docstring. Async tools work too. Tool errors become
 content (the LLM sees the failure as a tool result) rather than
 exceptions that abort the conversation.
 
-Three reference tools ship under `agartha.extensions.tools`:
+Three reference tools ship under `aether.extensions.tools`:
 
 ```python
-import agartha.extensions.tools  # registers get_current_time, http_get, read_file
+import aether.extensions.tools  # registers get_current_time, http_get, read_file
 ```
 
 ### Agents & sub-agent delegation
@@ -116,7 +116,7 @@ An `Agent` is a reusable bundle of instructions + tools + model you declare
 once and run many times — the framework owns the loop:
 
 ```python
-from agartha import Agent
+from aether import Agent
 
 researcher = Agent(
     "researcher",
@@ -146,8 +146,8 @@ When a coordinator emits several delegation (or tool) calls in one turn they
 are dispatched **concurrently** (`asyncio.gather`), with results fed back in
 the original order. Force strictly sequential dispatch — for tools or
 middleware that share mutable state — with `complete(..., parallel_tools=False)`
-or `AGARTHA_PARALLEL_TOOLS=0`. Nested delegation is **depth-bounded**
-(`AGARTHA_MAX_DELEGATION_DEPTH`, default 3, or `as_tool(max_depth=N)`): once the
+or `AETHER_PARALLEL_TOOLS=0`. Nested delegation is **depth-bounded**
+(`AETHER_MAX_DELEGATION_DEPTH`, default 3, or `as_tool(max_depth=N)`): once the
 limit is reached, further delegation is refused with an error the model sees,
 rather than recursing without bound.
 
@@ -156,7 +156,7 @@ rather than recursing without bound.
 On by default. Reports tokens and (where pricing is known) dollar cost:
 
 ```python
-client = Agartha()
+client = Aether()
 await client.ask("hi")
 await client.ask("how are you")
 
@@ -176,7 +176,7 @@ counts what actually billed — not retried attempts.
 for multi-turn:
 
 ```python
-from agartha import Agartha, Message
+from aether import Aether, Message
 
 convo = [
     Message(role="system",    content="You are terse."),
@@ -193,7 +193,7 @@ For chat apps, threading messages by hand gets old fast. Sessions
 remember the conversation for you:
 
 ```python
-client = Agartha()
+client = Aether()
 session = client.session("user_alice", system="You are helpful.")
 
 await session.ask("My name is Alice.")
@@ -208,10 +208,10 @@ Same `session_id` returns the same Session object within a client.
 Across processes, share the underlying store:
 
 ```python
-from agartha.extensions.memory import InMemorySessionStore
+from aether.extensions.memory import InMemorySessionStore
 store = InMemorySessionStore()              # or your own Redis/SQL store
-client_a = Agartha(memory_store=store)
-client_b = Agartha(memory_store=store)
+client_a = Aether(memory_store=store)
+client_b = Aether(memory_store=store)
 # Both see the same `session("alice")` history
 ```
 
@@ -219,8 +219,8 @@ The default store is in-memory. For production, implement the
 `SessionStore` Protocol against Redis, SQLite, etc.:
 
 ```python
-from agartha import SessionStore
-from agartha.llm.contracts import Message
+from aether import SessionStore
+from aether.llm.contracts import Message
 
 class RedisSessionStore:
     async def load(self, session_id: str) -> list[Message]: ...
@@ -253,10 +253,10 @@ for logging, tracing, metrics, debugging — no need to thread loggers
 through your code.
 
 ```python
-from agartha import Agartha
-from agartha.events import REQUEST_COMPLETE, TOOL_ERROR
+from aether import Aether
+from aether.events import REQUEST_COMPLETE, TOOL_ERROR
 
-client = Agartha()
+client = Aether()
 
 @client.on(REQUEST_COMPLETE)
 def log_latency(event):
@@ -279,13 +279,13 @@ The 10 events:
 
 Subscriber exceptions are caught and logged — observability never
 breaks the request path. Share an `EventBus` across multiple clients
-by passing `events=bus` to each `Agartha()`.
+by passing `events=bus` to each `Aether()`.
 
 ## Architecture
 
 ```
-agartha/
-├── client.py                ← Agartha facade (the front door)
+aether/
+├── client.py                ← Aether facade (the front door)
 ├── registry.py              ← generic plugin registry (any kind)
 ├── config.py                ← runtime config (env-driven, call-time)
 ├── events.py                ← EventBus + 10 lifecycle event types
@@ -315,7 +315,7 @@ agartha/
 ```
 
 Each layer only knows the one below it. The **generic registry** at
-the top level (`agartha/registry.py`) is the single source of truth
+the top level (`aether/registry.py`) is the single source of truth
 for what's pluggable — providers, tools, and any future "kind" (vector
 stores, databases, ...) live in nested dicts keyed by `kind`.
 
@@ -324,8 +324,8 @@ stores, databases, ...) live in nested dicts keyed by `kind`.
 ### Register a new LLM provider
 
 ```python
-from agartha import register_provider
-from agartha.llm.contracts import LLMRequest, LLMResponse
+from aether import register_provider
+from aether.llm.contracts import LLMRequest, LLMResponse
 
 @register_provider("ollama", api_key_env="OLLAMA_API_KEY", model_env="OLLAMA_MODEL")
 class OllamaProvider:
@@ -336,14 +336,14 @@ class OllamaProvider:
         ...
 ```
 
-Now `LLM_PROVIDER=ollama` works with `Agartha()` — no
+Now `LLM_PROVIDER=ollama` works with `Aether()` — no
 framework code changes. Retry, CircuitBreaker, and CostTracking
 wrap it automatically.
 
 ### Register a new tool
 
 ```python
-from agartha import register_tool
+from aether import register_tool
 
 @register_tool(description="Look up a customer by ID")
 def get_customer(customer_id: str) -> dict:
@@ -355,7 +355,7 @@ def get_customer(customer_id: str) -> dict:
 ```
 
 Tool is now available as `tools=["get_customer"]` in any
-`Agartha.complete()` call. JSON Schema is generated from the
+`Aether.complete()` call. JSON Schema is generated from the
 signature + docstring; the LLM sees the `customer_id` description
 verbatim.
 
@@ -366,7 +366,7 @@ For future subsystems (vector stores, databases, ...) the pattern
 is `register(kind, name, **metadata)`:
 
 ```python
-from agartha import register
+from aether import register
 
 @register("vector_store", "pinecone", dimension=1536)
 class PineconeStore:
@@ -375,20 +375,20 @@ class PineconeStore:
 
 ## Configuration
 
-All runtime defaults live in `agartha/config.py` and read from env
+All runtime defaults live in `aether/config.py` and read from env
 vars **at call time** (not import time), so tests and live config
 reloads work cleanly.
 
 | Env var | Default | Affects |
 |---|---|---|
-| `LLM_PROVIDER` | `openai` | Which provider `Agartha()` builds |
+| `LLM_PROVIDER` | `openai` | Which provider `Aether()` builds |
 | `OPENAI_API_KEY` / `GEMINI_API_KEY` | — | Per-provider API keys |
 | `OPENAI_MODEL` / `GEMINI_MODEL` | (provider default) | Override default model |
-| `AGARTHA_DEFAULT_TEMPERATURE` | `0.7` | Default sampling temp |
-| `AGARTHA_MAX_TOOL_ITERATIONS` | `10` | Tool-loop cap before giving up |
-| `AGARTHA_HTTP_TOOL_TIMEOUT` | `10.0` | Default timeout (seconds) for `http_get` |
-| `AGARTHA_HTTP_TOOL_MAX_BYTES` | `100000` | Max body size before `http_get` truncates |
-| `AGARTHA_FILE_TOOL_MAX_BYTES` | `200000` | Max bytes before `read_file` truncates |
+| `AETHER_DEFAULT_TEMPERATURE` | `0.7` | Default sampling temp |
+| `AETHER_MAX_TOOL_ITERATIONS` | `10` | Tool-loop cap before giving up |
+| `AETHER_HTTP_TOOL_TIMEOUT` | `10.0` | Default timeout (seconds) for `http_get` |
+| `AETHER_HTTP_TOOL_MAX_BYTES` | `100000` | Max body size before `http_get` truncates |
+| `AETHER_FILE_TOOL_MAX_BYTES` | `200000` | Max bytes before `read_file` truncates |
 
 Precedence: **per-call kwarg > env var > in-code fallback.** Invalid
 env values silently fall back to the default rather than crashing.
@@ -402,19 +402,19 @@ env values silently fall back to the default rather than crashing.
 The `FakeProvider` lets you write end-to-end tests with no API calls:
 
 ```python
-from agartha import Agartha
-from agartha.extensions.llm.fake import FakeProvider
+from aether import Aether
+from aether.extensions.llm.fake import FakeProvider
 
 async def test_my_agent_logic():
     fake = FakeProvider(canned_response="hello")
-    client = Agartha(fake)
+    client = Aether(fake)
     assert await client.ask("hi") == "hello"
 ```
 
 For scripted multi-turn flows (including tool calls):
 
 ```python
-from agartha.llm.contracts import LLMResponse, ToolCall
+from aether.llm.contracts import LLMResponse, ToolCall
 
 fake = FakeProvider(responses=[
     LLMResponse(text="", model="...", input_tokens=1, output_tokens=1,

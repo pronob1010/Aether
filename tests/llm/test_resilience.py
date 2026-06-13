@@ -1,9 +1,9 @@
 import pytest
 import time
 from typing import Optional
-from agartha.llm.contracts import LLMRequest, LLMResponse, LLMProvider, Message
-from agartha.extensions.llm.retrying import RetryingProvider
-from agartha.extensions.llm.circuit_breaker import CircuitBreakerProvider, CircuitState, CircuitBreakerOpenException
+from aether.llm.contracts import LLMRequest, LLMResponse, LLMProvider, Message
+from aether.extensions.llm.retrying import RetryingProvider
+from aether.extensions.llm.circuit_breaker import CircuitBreakerProvider, CircuitState, CircuitBreakerOpenException
 
 class FailingProvider(LLMProvider):
     """A mock provider that fails a specific number of times before succeeding."""

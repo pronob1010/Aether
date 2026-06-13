@@ -3,10 +3,10 @@ import asyncio
 
 import pytest
 
-from agartha import Agartha, register_tool
-from agartha.extensions.llm.fake import FakeProvider
-from agartha.llm.contracts import LLMResponse, ToolCall
-from agartha.registry import REGISTRY
+from aether import Aether, register_tool
+from aether.extensions.llm.fake import FakeProvider
+from aether.llm.contracts import LLMResponse, ToolCall
+from aether.registry import REGISTRY
 
 
 def _two_call_then_done(events_unused=None):
@@ -43,7 +43,7 @@ async def test_parallel_is_default_and_overlaps():
     events: list[str] = []
     _register_overlap_probe_tools(events)
     try:
-        result = await Agartha(_two_call_then_done()).complete(
+        result = await Aether(_two_call_then_done()).complete(
             "go", tools=["t1", "t2"],
         )
     finally:
@@ -59,7 +59,7 @@ async def test_sequential_when_disabled_no_overlap():
     events: list[str] = []
     _register_overlap_probe_tools(events)
     try:
-        await Agartha(_two_call_then_done()).complete(
+        await Aether(_two_call_then_done()).complete(
             "go", tools=["t1", "t2"], parallel_tools=False,
         )
     finally:
@@ -71,12 +71,12 @@ async def test_sequential_when_disabled_no_overlap():
 
 @pytest.mark.asyncio
 async def test_env_var_can_default_to_sequential(monkeypatch):
-    monkeypatch.setenv("AGARTHA_PARALLEL_TOOLS", "0")
+    monkeypatch.setenv("AETHER_PARALLEL_TOOLS", "0")
     events: list[str] = []
     _register_overlap_probe_tools(events)
     try:
         # No parallel_tools kwarg -> reads the env default (sequential).
-        await Agartha(_two_call_then_done()).complete("go", tools=["t1", "t2"])
+        await Aether(_two_call_then_done()).complete("go", tools=["t1", "t2"])
     finally:
         del REGISTRY["tool"]["t1"]
         del REGISTRY["tool"]["t2"]
@@ -89,7 +89,7 @@ async def test_results_appended_in_order_regardless_of_mode():
     events: list[str] = []
     _register_overlap_probe_tools(events)
     try:
-        await Agartha(fake).complete("go", tools=["t1", "t2"], parallel_tools=True)
+        await Aether(fake).complete("go", tools=["t1", "t2"], parallel_tools=True)
     finally:
         del REGISTRY["tool"]["t1"]
         del REGISTRY["tool"]["t2"]

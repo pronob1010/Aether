@@ -6,14 +6,14 @@ stream session (text + tool_calls per session). The facade hides the
 multi-session machinery from the caller.
 """
 import pytest
-from agartha import Agartha, register_tool, EventBus
-from agartha.llm.contracts import LLMStreamChunk, ToolCall
-from agartha.extensions.llm.fake import FakeProvider
-from agartha.events import (
+from aether import Aether, register_tool, EventBus
+from aether.llm.contracts import LLMStreamChunk, ToolCall
+from aether.extensions.llm.fake import FakeProvider
+from aether.events import (
     STREAM_START, STREAM_CHUNK, STREAM_COMPLETE,
     TOOL_START, TOOL_COMPLETE, TOOL_ERROR,
 )
-from agartha.registry import REGISTRY
+from aether.registry import REGISTRY
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ async def test_stream_with_one_tool_call_round_trip(cleanup_registry):
         ],
     ])
 
-    client = Agartha(fake)
+    client = Aether(fake)
     parts = []
     async for chunk in client.stream("calc", tools=["add"]):
         parts.append(chunk.text)
@@ -91,7 +91,7 @@ async def test_stream_text_with_tool_call_yields_only_text(cleanup_registry):
         ],
     ])
 
-    client = Agartha(fake)
+    client = Aether(fake)
     text = "".join([t async for t in client.stream_text("go", tools=["echo"])])
     assert text == "thinking done"
 
@@ -126,7 +126,7 @@ async def test_stream_with_multiple_parallel_tool_calls(cleanup_registry):
         ],
     ])
 
-    client = Agartha(fake)
+    client = Aether(fake)
     text = "".join([t async for t in client.stream_text("both", tools=["add", "mul"])])
     assert text == "Sum=5, product=20."
     # Second call has both tool results
@@ -153,7 +153,7 @@ async def test_stream_with_multiple_iterations(cleanup_registry):
         [LLMStreamChunk(text="done", finish_reason="stop")],
     ])
 
-    client = Agartha(fake)
+    client = Aether(fake)
     text = "".join([t async for t in client.stream_text("loop", tools=["step"])])
     assert text == "done"
     assert len(fake.calls) == 4
@@ -174,7 +174,7 @@ async def test_stream_respects_max_tool_iterations(cleanup_registry):
         for i in range(100)
     ])
 
-    client = Agartha(fake)
+    client = Aether(fake)
     _ = [t async for t in client.stream_text("loop", tools=["forever"], max_tool_iterations=2)]
     # 2 iterations + 1 initial = 3 sessions
     assert len(fake.calls) == 3
@@ -194,7 +194,7 @@ async def test_tool_error_during_stream_recovers(cleanup_registry):
         [LLMStreamChunk(text="recovered", finish_reason="stop")],
     ])
 
-    client = Agartha(fake)
+    client = Aether(fake)
     text = "".join([t async for t in client.stream_text("go", tools=["broken"])])
     assert text == "recovered"
     # Tool error was reported back to LLM as content, not raised
@@ -223,7 +223,7 @@ async def test_stream_events_fire_once_across_tool_loop(cleanup_registry):
     bus.on(STREAM_START, lambda e: starts.append(e))
     bus.on(STREAM_COMPLETE, lambda e: completes.append(e))
 
-    client = Agartha(fake, events=bus)
+    client = Aether(fake, events=bus)
     _ = [c async for c in client.stream("go", tools=["step"])]
 
     assert len(starts) == 1
@@ -246,7 +246,7 @@ async def test_stream_chunk_event_does_not_fire_for_tool_call_chunks(cleanup_reg
     ])
 
     chunks = []
-    client = Agartha(fake)
+    client = Aether(fake)
     client.on(STREAM_CHUNK, lambda e: chunks.append(e.chunk))
 
     _ = [c async for c in client.stream("go", tools=["step"])]
@@ -268,7 +268,7 @@ async def test_tool_events_fire_during_stream(cleanup_registry):
     ])
 
     starts, completes, errors = [], [], []
-    client = Agartha(fake)
+    client = Aether(fake)
     client.on(TOOL_START,    lambda e: starts.append(e))
     client.on(TOOL_COMPLETE, lambda e: completes.append(e))
     client.on(TOOL_ERROR,    lambda e: errors.append(e))

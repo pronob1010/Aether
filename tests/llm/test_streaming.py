@@ -1,10 +1,10 @@
 import pytest
 from typing import AsyncIterator
-from agartha import Agartha
-from agartha.llm.contracts import LLMRequest, LLMStreamChunk, Message
-from agartha.extensions.llm.fake import FakeProvider
-from agartha.extensions.llm.retrying import RetryingProvider
-from agartha.extensions.llm.circuit_breaker import (
+from aether import Aether
+from aether.llm.contracts import LLMRequest, LLMStreamChunk, Message
+from aether.extensions.llm.fake import FakeProvider
+from aether.extensions.llm.retrying import RetryingProvider
+from aether.extensions.llm.circuit_breaker import (
     CircuitBreakerProvider,
     CircuitState,
     CircuitBreakerOpenException,
@@ -37,12 +37,12 @@ async def test_fake_provider_stream_final_chunk_carries_metadata():
     assert chunks[0].finish_reason is None
 
 
-# --- Agartha facade streaming ---------------------------------------------
+# --- Aether facade streaming ---------------------------------------------
 
 @pytest.mark.asyncio
-async def test_agartha_stream_yields_rich_chunks():
+async def test_aether_stream_yields_rich_chunks():
     fake = FakeProvider(canned_response="alpha beta")
-    client = Agartha(fake)
+    client = Aether(fake)
     chunks = [c async for c in client.stream("hi")]
     assert len(chunks) == 2
     assert chunks[0].text == "alpha"
@@ -51,17 +51,17 @@ async def test_agartha_stream_yields_rich_chunks():
 
 
 @pytest.mark.asyncio
-async def test_agartha_stream_text_yields_only_strings():
+async def test_aether_stream_text_yields_only_strings():
     fake = FakeProvider(canned_response="alpha beta gamma")
-    client = Agartha(fake)
+    client = Aether(fake)
     text_parts = [t async for t in client.stream_text("hi")]
     assert "".join(text_parts) == "alpha beta gamma"
 
 
 @pytest.mark.asyncio
-async def test_agartha_stream_forwards_model_and_temperature():
+async def test_aether_stream_forwards_model_and_temperature():
     fake = FakeProvider()
-    client = Agartha(fake)
+    client = Aether(fake)
     _ = [c async for c in client.stream("hi", model="gpt-4o", temperature=0.0)]
     sent = fake.calls[0]
     assert sent.model == "gpt-4o"
