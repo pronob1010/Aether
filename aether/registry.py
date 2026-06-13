@@ -9,14 +9,15 @@ Layout:
 owning subsystem needs to interpret — the registry never reads it.
 """
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass(frozen=True)
 class PluginSpec:
     """Everything the framework stores about one registered plugin."""
-    factory: Callable[[], type]             # returns the CLASS (lazy or eager)
+    factory: Callable[[], Any]              # returns the plugin object (class, ToolSpec, ...)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -53,7 +54,7 @@ def register(kind: str, name: str, **metadata: Any):
 def register_lazy(
     kind: str,
     name: str,
-    factory: Callable[[], type],
+    factory: Callable[[], Any],
     **metadata: Any,
 ) -> None:
     """Imperative registration for lazy-imported built-ins.

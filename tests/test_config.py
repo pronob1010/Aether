@@ -1,5 +1,6 @@
 """Runtime configuration sourced from env vars (aether/config.py)."""
 import pytest
+
 from aether import Aether, register_tool
 from aether.config import (
     get_default_temperature,
@@ -8,8 +9,8 @@ from aether.config import (
     get_http_tool_timeout,
     get_max_tool_iterations,
 )
-from aether.llm.contracts import LLMResponse, ToolCall
 from aether.extensions.llm.fake import FakeProvider
+from aether.llm.contracts import LLMResponse, ToolCall
 from aether.registry import REGISTRY
 
 

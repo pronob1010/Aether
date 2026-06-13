@@ -6,13 +6,18 @@ stream session (text + tool_calls per session). The facade hides the
 multi-session machinery from the caller.
 """
 import pytest
-from aether import Aether, register_tool, EventBus
-from aether.llm.contracts import LLMStreamChunk, ToolCall
-from aether.extensions.llm.fake import FakeProvider
+
+from aether import Aether, EventBus, register_tool
 from aether.events import (
-    STREAM_START, STREAM_CHUNK, STREAM_COMPLETE,
-    TOOL_START, TOOL_COMPLETE, TOOL_ERROR,
+    STREAM_CHUNK,
+    STREAM_COMPLETE,
+    STREAM_START,
+    TOOL_COMPLETE,
+    TOOL_ERROR,
+    TOOL_START,
 )
+from aether.extensions.llm.fake import FakeProvider
+from aether.llm.contracts import LLMStreamChunk, ToolCall
 from aether.registry import REGISTRY
 
 

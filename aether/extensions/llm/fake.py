@@ -1,8 +1,10 @@
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
+
 from aether.llm.contracts import (
     LLMRequest,
     LLMResponse,
     LLMStreamChunk,
+    text_of,
 )
 
 
@@ -35,7 +37,7 @@ class FakeProvider:
     def _last_user_text(self, request: LLMRequest) -> str:
         for msg in reversed(request.messages):
             if msg.role == "user" and msg.content:
-                return msg.content
+                return text_of(msg.content)
         return ""
 
     async def complete(self, request: LLMRequest) -> LLMResponse:

@@ -4,9 +4,10 @@ Tool calling builds on top of this; these tests pin the contract so the
 later tool-loop tests have a stable base.
 """
 import pytest
+
 from aether import Aether, Message
-from aether.llm.contracts import LLMRequest
 from aether.extensions.llm.fake import FakeProvider
+from aether.llm.contracts import LLMRequest
 
 
 @pytest.mark.asyncio

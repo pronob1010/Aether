@@ -5,6 +5,7 @@ to confine reads to a directory — paths resolving outside it (after following
 symlinks, so `../` traversal and symlink escapes are caught) are refused.
 """
 from pathlib import Path
+
 from aether import register_tool
 from aether.config import get_file_tool_max_bytes, get_file_tool_root
 

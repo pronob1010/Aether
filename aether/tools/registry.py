@@ -5,11 +5,13 @@ a `complete()` call. Registration auto-generates the JSON Schema the LLM
 needs to know how to call it.
 """
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
-from aether.registry import get as _registry_get, list_kind, register_lazy
-from aether.tools.schema import tool_schema
+from typing import Any
 
+from aether.registry import get as _registry_get
+from aether.registry import list_kind, register_lazy
+from aether.tools.schema import tool_schema
 
 TOOL_KIND = "tool"
 

@@ -1,6 +1,48 @@
+import asyncio
+import inspect
 import os
 import time
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
+
+from aether.config import (
+    get_default_temperature,
+    get_max_tool_iterations,
+    get_parallel_tools,
+)
+from aether.events import (
+    REQUEST_COMPLETE,
+    REQUEST_ERROR,
+    REQUEST_START,
+    STREAM_CHUNK,
+    STREAM_COMPLETE,
+    STREAM_ERROR,
+    STREAM_START,
+    TOOL_COMPLETE,
+    TOOL_ERROR,
+    TOOL_START,
+    EventBus,
+    Handler,
+    RequestCompleteEvent,
+    RequestErrorEvent,
+    RequestStartEvent,
+    StreamChunkEvent,
+    StreamCompleteEvent,
+    StreamErrorEvent,
+    StreamStartEvent,
+    ToolCompleteEvent,
+    ToolErrorEvent,
+    ToolStartEvent,
+)
+from aether.extensions.llm.builder import (
+    CircuitBreakerConfig,
+    CostTrackingConfig,
+    ProviderConfig,
+    RetryConfig,
+    build_provider,
+)
+from aether.extensions.llm.cost_tracking import CostTrackingProvider, UsageStats
+from aether.extensions.llm.registry import LLM_PROVIDER_KIND
+from aether.extensions.memory import InMemorySessionStore
 from aether.llm.contracts import (
     LLMProvider,
     LLMRequest,
@@ -8,30 +50,10 @@ from aether.llm.contracts import (
     LLMStreamChunk,
     Message,
 )
-from aether.extensions.llm.builder import (
-    ProviderConfig,
-    RetryConfig,
-    CircuitBreakerConfig,
-    CostTrackingConfig,
-    build_provider,
-)
-from aether.extensions.llm.cost_tracking import CostTrackingProvider, UsageStats
-from aether.registry import REGISTRY, list_kind
-from aether.extensions.llm.registry import LLM_PROVIDER_KIND
-from aether.tools.registry import dispatch_tool
-from aether.config import get_default_temperature, get_max_tool_iterations
-from aether.events import (
-    EventBus,
-    Handler,
-    REQUEST_START, REQUEST_COMPLETE, REQUEST_ERROR,
-    STREAM_START, STREAM_CHUNK, STREAM_COMPLETE, STREAM_ERROR,
-    TOOL_START, TOOL_COMPLETE, TOOL_ERROR,
-    RequestStartEvent, RequestCompleteEvent, RequestErrorEvent,
-    StreamStartEvent, StreamChunkEvent, StreamCompleteEvent, StreamErrorEvent,
-    ToolStartEvent, ToolCompleteEvent, ToolErrorEvent,
-)
 from aether.memory import Session, SessionStore
-from aether.extensions.memory import InMemorySessionStore
+from aether.middleware import Middleware
+from aether.registry import REGISTRY, list_kind
+from aether.tools.registry import dispatch_tool
 
 
 def _config_from_env(
@@ -104,6 +126,7 @@ class Aether:
         with_cost_tracking: bool = True,
         events: EventBus | None = None,
         memory_store: SessionStore | None = None,
+        middleware: list[Middleware] | None = None,
     ):
         if provider is not None and config is not None:
             raise ValueError("Pass either `provider` or `config`, not both.")
@@ -111,6 +134,10 @@ class Aether:
         # Share an EventBus across clients by passing the same instance.
         # Default: each client gets its own.
         self.events = events or EventBus()
+
+        # Pipeline middleware: before_request / on_tool_call / after_response
+        # hooks the loop calls into. Empty by default (pure pass-through).
+        self._middleware = list(middleware or [])
 
         # Session store + a per-client cache so `client.session("id")` always
         # returns the same Session object (in-process consistency).
@@ -234,6 +261,67 @@ class Aether:
             return [Message(role="user", content=prompt)]
         return prompt
 
+    async def _apply_before_request(self, request: LLMRequest) -> LLMRequest:
+        """Thread the request through each middleware's `before_request` hook."""
+        for mw in self._middleware:
+            result = mw.before_request(request)
+            if inspect.isawaitable(result):
+                result = await result
+            request = result
+        return request
+
+    async def _apply_after_response(
+        self, request: LLMRequest, response: LLMResponse
+    ) -> LLMResponse:
+        """Thread the final answer through each middleware's `after_response`
+        hook. A hook may return a modified response or raise to reject."""
+        for mw in self._middleware:
+            result = mw.after_response(request, response)
+            if inspect.isawaitable(result):
+                result = await result
+            response = result
+        return response
+
+    async def _tool_override(self, tc) -> str | None:
+        """Return the first non-None `on_tool_call` decision, or None to run
+        the tool normally."""
+        for mw in self._middleware:
+            result = mw.on_tool_call(tc)
+            if inspect.isawaitable(result):
+                result = await result
+            if result is not None:
+                return result
+        return None
+
+    async def _dispatch_with_middleware(self, tc) -> str:
+        """Dispatch a tool, unless middleware overrides the result first.
+
+        An override skips execution but still emits tool.start/complete so the
+        decision stays observable.
+        """
+        override = await self._tool_override(tc)
+        if override is None:
+            return await self._dispatch_with_events(tc)
+        await self.events.emit(TOOL_START, ToolStartEvent(call=tc))
+        await self.events.emit(TOOL_COMPLETE, ToolCompleteEvent(
+            call=tc, result=override, duration_seconds=0.0,
+        ))
+        return override
+
+    async def _dispatch_tool_calls(self, tool_calls, *, parallel: bool) -> list[str]:
+        """Dispatch a turn's tool calls and return their results in order.
+
+        Parallel (the default) runs them concurrently via `asyncio.gather` —
+        independent tools and sub-agent fan-out overlap. Sequential awaits each
+        in turn, for tools/middleware that share mutable state. Either way the
+        returned list matches `tool_calls` order.
+        """
+        if parallel and len(tool_calls) > 1:
+            return list(await asyncio.gather(*(
+                self._dispatch_with_middleware(tc) for tc in tool_calls
+            )))
+        return [await self._dispatch_with_middleware(tc) for tc in tool_calls]
+
     async def complete(
         self,
         prompt: str | list[Message],
@@ -242,6 +330,7 @@ class Aether:
         temperature: float | None = None,
         tools: list[str] | None = None,
         max_tool_iterations: int | None = None,
+        parallel_tools: bool | None = None,
     ) -> LLMResponse:
         """Full response — text, model, token counts.
 
@@ -251,48 +340,59 @@ class Aether:
         If `tools` is provided, runs the tool-calling loop: the LLM may
         request tool invocations, which Aether dispatches and feeds back
         as new messages, up to `max_tool_iterations` round-trips before
-        returning the most recent response.
+        returning the most recent response. Multiple tool calls in one turn
+        run concurrently by default; pass `parallel_tools=False` to dispatch
+        them strictly in order (results are appended in order either way).
 
         Unspecified `temperature` reads `AETHER_DEFAULT_TEMPERATURE`
         (falls back to 0.7). Unspecified `max_tool_iterations` reads
-        `AETHER_MAX_TOOL_ITERATIONS` (falls back to 10).
+        `AETHER_MAX_TOOL_ITERATIONS` (falls back to 10). Unspecified
+        `parallel_tools` reads `AETHER_PARALLEL_TOOLS` (falls back to True).
         """
         if temperature is None:
             temperature = get_default_temperature()
         if max_tool_iterations is None:
             max_tool_iterations = get_max_tool_iterations()
+        if parallel_tools is None:
+            parallel_tools = get_parallel_tools()
         messages = self._to_messages(prompt)
 
         # Fast path: no tools → single round-trip.
         if not tools:
-            return await self._complete_with_events(LLMRequest(
+            req = await self._apply_before_request(LLMRequest(
                 messages=messages,
                 model=model,
                 temperature=temperature,
             ))
+            resp = await self._complete_with_events(req)
+            return await self._apply_after_response(req, resp)
 
         # Tool loop: each iteration is one LLM call. If the LLM emits
         # tool_calls, dispatch them, append the results as messages, and
         # call again. Stop when the LLM produces a response with no more
         # tool calls, or when the iteration cap is hit.
         response: LLMResponse | None = None
+        request: LLMRequest | None = None
         for _ in range(max_tool_iterations + 1):
-            response = await self._complete_with_events(LLMRequest(
+            request = await self._apply_before_request(LLMRequest(
                 messages=messages,
                 model=model,
                 temperature=temperature,
                 tools=tools,
             ))
+            response = await self._complete_with_events(request)
             if not response.tool_calls:
-                return response
+                return await self._apply_after_response(request, response)
 
             messages.append(Message(
                 role="assistant",
                 content=response.text or None,
                 tool_calls=response.tool_calls,
             ))
-            for tc in response.tool_calls:
-                content = await self._dispatch_with_events(tc)
+            contents = await self._dispatch_tool_calls(
+                response.tool_calls, parallel=parallel_tools,
+            )
+            for tc, content in zip(response.tool_calls, contents, strict=True):
                 messages.append(Message(
                     role="tool",
                     content=content,
@@ -301,11 +401,11 @@ class Aether:
 
         # Hit the iteration cap — return the last response (likely still
         # asking for tools, but the caller said "give up after N"). The loop
-        # always runs at least once, so response is set; guard explicitly
+        # always runs at least once, so both are set; guard explicitly
         # rather than assert so the check survives `python -O`.
-        if response is None:
+        if response is None or request is None:
             raise RuntimeError("tool loop produced no response")
-        return response
+        return await self._apply_after_response(request, response)
 
     async def ask(
         self,

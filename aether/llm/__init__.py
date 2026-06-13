@@ -1,5 +1,6 @@
 """LLM contracts and the `ask` convenience helper."""
 
+from aether.llm.ask import ask
 from aether.llm.contracts import (
     LLMProvider,
     LLMRequest,
@@ -8,7 +9,6 @@ from aether.llm.contracts import (
     Message,
     ToolCall,
 )
-from aether.llm.ask import ask
 
 __all__ = [
     "LLMProvider",

@@ -7,21 +7,33 @@ registries, memory, context budgeting, reasoning strategies, and
 observability.
 """
 
+from aether.agent import Agent
 from aether.client import Aether
-from aether.llm import LLMProvider, LLMRequest, LLMResponse, Message, ToolCall, ask
-from aether.extensions.llm.registry import register_provider
-from aether.extensions.llm.cost_tracking import UsageStats, TokenUsage, ModelPricing
-from aether.registry import register, register_lazy
-from aether.tools import register_tool, list_tools, get_tool
 from aether.events import EventBus
+from aether.extensions.llm.cost_tracking import ModelPricing, TokenUsage, UsageStats
+from aether.extensions.llm.registry import register_provider
+from aether.llm import LLMProvider, LLMRequest, LLMResponse, Message, ToolCall, ask
+from aether.llm.contracts import DocumentPart, ImagePart, TextPart
 from aether.memory import Session, SessionStore
+from aether.middleware import GroundingGuard, Middleware
+from aether.registry import register, register_lazy
+from aether.tools import get_tool, list_tools, register_tool
 
 __all__ = [
     # Entry point
     "Aether",
+    # Declarative agent runtime (+ sub-agent delegation via .as_tool())
+    "Agent",
     # Conversation primitives
     "Message",
     "ToolCall",
+    # Multimodal message content (documents / images on a turn)
+    "TextPart",
+    "ImagePart",
+    "DocumentPart",
+    # Middleware pipeline (before_request / on_tool_call / after_response)
+    "Middleware",
+    "GroundingGuard",
     # Sessions (stateful conversations)
     "Session",
     "SessionStore",

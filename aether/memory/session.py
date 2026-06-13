@@ -17,7 +17,9 @@ Correctness rules baked in:
      the history.
 """
 import asyncio
-from typing import TYPE_CHECKING, AsyncIterator, Any
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Any
+
 from aether.llm.contracts import LLMResponse, LLMStreamChunk, Message
 from aether.memory.contracts import SessionStore
 

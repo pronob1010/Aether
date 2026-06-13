@@ -1,5 +1,5 @@
 """Auto-generated JSON Schema from Python function signatures."""
-from typing import Optional
+
 from aether.tools.schema import tool_schema
 
 
@@ -20,7 +20,7 @@ def test_required_vs_optional_parameters():
 
 
 def test_optional_type_unwraps_to_inner():
-    def f(maybe: Optional[str] = None): ...
+    def f(maybe: str | None = None): ...
     schema = tool_schema(f)
     assert schema["parameters"]["properties"]["maybe"]["type"] == "string"
 

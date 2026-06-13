@@ -1,15 +1,20 @@
-from typing import Any, AsyncIterator
+import base64
+from collections.abc import AsyncIterator
+from typing import Any
+
 from google import genai
 from google.genai import types
+
 from aether.llm.contracts import (
     LLMRequest,
     LLMResponse,
     LLMStreamChunk,
     Message,
+    TextPart,
     ToolCall,
+    text_of,
 )
 from aether.tools import get_tool
-
 
 # Gemini's role names differ from OpenAI's.
 _ROLE_MAP = {"user": "user", "assistant": "model"}
@@ -23,10 +28,29 @@ def _split_system_and_conversation(
     conversation: list[Message] = []
     for msg in messages:
         if msg.role == "system" and msg.content:
-            system_parts.append(msg.content)
+            system_parts.append(text_of(msg.content))
         else:
             conversation.append(msg)
     return ("\n".join(system_parts) if system_parts else None, conversation)
+
+
+def _gemini_parts(content: Any) -> list[types.Part]:
+    """Translate a Message's content into a list of Gemini Parts.
+
+    Strings become a single text part; a list of parts maps text to text and
+    image/document parts to inline bytes (`from_bytes`).
+    """
+    if not isinstance(content, list):
+        return [types.Part.from_text(text=content)]
+    parts: list[types.Part] = []
+    for part in content:
+        if isinstance(part, TextPart):
+            parts.append(types.Part.from_text(text=part.text))
+        else:  # ImagePart / DocumentPart — inline bytes
+            parts.append(types.Part.from_bytes(
+                data=base64.b64decode(part.data), mime_type=part.media_type,
+            ))
+    return parts
 
 
 def _to_gemini_contents(messages: list[Message]) -> list[types.Content]:
@@ -38,8 +62,9 @@ def _to_gemini_contents(messages: list[Message]) -> list[types.Content]:
                 types.Part.from_function_call(name=tc.name, args=tc.arguments)
                 for tc in msg.tool_calls
             ]
-            if msg.content:
-                parts.insert(0, types.Part.from_text(text=msg.content))
+            text = text_of(msg.content)
+            if text:
+                parts.insert(0, types.Part.from_text(text=text))
             contents.append(types.Content(role="model", parts=parts))
         elif msg.role == "tool" and msg.tool_call_id is not None:
             # Result of a function the framework executed.
@@ -54,12 +79,15 @@ def _to_gemini_contents(messages: list[Message]) -> list[types.Content]:
         elif msg.role in _ROLE_MAP and msg.content is not None:
             contents.append(types.Content(
                 role=_ROLE_MAP[msg.role],
-                parts=[types.Part.from_text(text=msg.content)],
+                parts=_gemini_parts(msg.content),
             ))
     return contents
 
 
-def _tools_config(tool_names: list[str] | None) -> list[types.Tool] | None:
+# Return type is `list[Any]` (not `list[types.Tool]`) because google-genai
+# types the `tools=` param as an invariant union; `list[Any]` stays
+# assignment-compatible without a fragile per-call `type: ignore`.
+def _tools_config(tool_names: list[str] | None) -> list[Any] | None:
     if not tool_names:
         return None
     declarations: list[types.FunctionDeclaration] = []
@@ -114,8 +142,8 @@ class GeminiProvider:
         return LLMResponse(
             text=response.text or "",
             model=response.model_version or model,
-            input_tokens=usage.prompt_token_count if usage else 0,
-            output_tokens=usage.candidates_token_count if usage else 0,
+            input_tokens=(usage.prompt_token_count or 0) if usage else 0,
+            output_tokens=(usage.candidates_token_count or 0) if usage else 0,
             tool_calls=_parse_function_calls(response),
         )
 

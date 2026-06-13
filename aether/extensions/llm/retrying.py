@@ -1,12 +1,14 @@
 import logging
-from typing import AsyncIterator, Type
+from collections.abc import AsyncIterator
+
 from tenacity import (
     AsyncRetrying,
+    before_sleep_log,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
 )
+
 from aether.llm.contracts import LLMProvider, LLMRequest, LLMResponse, LLMStreamChunk
 
 logger = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ class RetryingProvider:
         max_attempts: int = 3,
         min_wait: float = 1.0,
         max_wait: float = 10.0,
-        retry_exceptions: tuple[Type[Exception], ...] = (Exception,)
+        retry_exceptions: tuple[type[Exception], ...] = (Exception,)
     ):
         self.inner_provider = inner_provider
         self.retry_logic = AsyncRetrying(
@@ -46,6 +48,10 @@ class RetryingProvider:
         async for attempt in self.retry_logic:
             with attempt:
                 return await self.inner_provider.complete(request)
+        # tenacity (reraise=True) returns or raises inside the loop; this is
+        # unreachable, but an explicit raise satisfies the type checker and
+        # guards against a silent None if the loop ever exits.
+        raise RuntimeError("retry loop exhausted without returning a response")
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamChunk]:
         # Retry the handshake: open the stream + pull the first chunk.

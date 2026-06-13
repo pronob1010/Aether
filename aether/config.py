@@ -48,6 +48,31 @@ def get_max_tool_iterations() -> int:
     return _int_env("AETHER_MAX_TOOL_ITERATIONS", 10)
 
 
+def get_max_delegation_depth() -> int:
+    """How many nested levels of sub-agent delegation are allowed.
+
+    A top-level run is depth 0; each `Agent.as_tool()` delegation goes one
+    level deeper. When the limit is reached, further delegation is refused with
+    an error string (the model sees it) rather than recursing without bound.
+
+    Override via `AETHER_MAX_DELEGATION_DEPTH`, or per-tool with
+    `Agent.as_tool(max_depth=N)`. Falls back to 3.
+    """
+    return _int_env("AETHER_MAX_DELEGATION_DEPTH", 3)
+
+
+def get_parallel_tools() -> bool:
+    """Whether multiple tool calls in one turn are dispatched concurrently.
+
+    Defaults to True — independent tools and sub-agent fan-out run at the same
+    time (results are still appended in the original order). Set
+    `AETHER_PARALLEL_TOOLS=0` (or pass `parallel_tools=False` to `complete()`)
+    to force strictly sequential dispatch when tools/middleware share mutable
+    state and can't tolerate concurrency.
+    """
+    return _bool_env("AETHER_PARALLEL_TOOLS", True)
+
+
 # --- LLM request defaults ----------------------------------------------
 
 def get_default_temperature() -> float:

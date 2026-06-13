@@ -1,10 +1,12 @@
 """Session memory subsystem — stateful conversations via Aether.session()."""
 import asyncio
+
 import pytest
+
 from aether import Aether, Message, Session, register_tool
-from aether.llm.contracts import LLMResponse, ToolCall
 from aether.extensions.llm.fake import FakeProvider
 from aether.extensions.memory import InMemorySessionStore
+from aether.llm.contracts import LLMResponse, ToolCall
 from aether.registry import REGISTRY
 
 
@@ -163,7 +165,7 @@ class _Boom:
         raise ValueError("provider down")
     async def stream(self, request):
         raise ValueError("provider down")
-        yield  # noqa: unreachable
+        yield  # (unreachable) marks this as an async generator
 
 
 @pytest.mark.asyncio
